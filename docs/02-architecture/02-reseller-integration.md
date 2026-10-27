@@ -14,8 +14,11 @@ in an adapter so the rest of the system sees one internal model.
 
 TBD
 
-```
-web app ──> fulfilment (our domain) ──> reseller adapter ──> reseller API
+```mermaid
+flowchart LR
+  W[Web app] --> F[Fulfilment domain]
+  F --> A[Reseller adapter]
+  A --> R[Reseller API]
 ```
 
 ## To define
