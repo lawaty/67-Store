@@ -25,6 +25,20 @@ reseller price.
 
 All surfaces share the same domain; the web app is simply the first one built.
 
+## Bounded contexts (candidates)
+
+Not yet agreed. Candidate list:
+
+- Catalog — games, platforms, products (e.g. currency packs), prices.
+- Ordering — placing and paying for a topup.
+- Fulfilment — sending the order to a reseller and tracking its outcome.
+- Accounts — customers, sessions, support.
+- Reseller integration — one context per reseller adapter, plus a shared
+  anti-corruption layer that maps our model to theirs.
+- Back office — pricing, reseller balance, reporting.
+
+TBD — repositories, aggregates and events relevant to topup orders.
+
 ## Current stage
 
 Researching resellers in order to decide which reseller(s) we will deal with.
