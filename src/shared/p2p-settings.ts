@@ -1,0 +1,7 @@
+export const MIN_P2P_WINDOW_HOURS = 1
+export const MAX_P2P_WINDOW_HOURS = 720
+export const MIN_P2P_SYNC_INTERVAL_SECONDS = 300
+export const MAX_P2P_SYNC_INTERVAL_SECONDS = 10_800
+export const MIN_P2P_OUTLIER_SIGMA = 1
+export const MAX_P2P_OUTLIER_SIGMA = 5
+export const DEFAULT_P2P_OUTLIER_SIGMA = 2
