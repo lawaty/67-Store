@@ -1,0 +1,1 @@
+ALTER TABLE `Setting` MODIFY `value` LONGTEXT NOT NULL;

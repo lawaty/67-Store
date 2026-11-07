@@ -1,0 +1,325 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum PromoKind {
+  PERCENT
+  FIXED
+}
+
+model Client {
+  id        String         @id @default(uuid())
+  suspended Boolean        @default(false)
+  createdAt DateTime       @default(now())
+  account   ClientAccount?
+  orders    Order[]
+  wallet    Wallet?
+  deposits  Deposit[]
+  levelAchievements LevelAchievement[]
+  walletFundings    WalletFunding[]
+}
+
+model GamingProfile {
+  id         String        @id @default(uuid())
+  accountId  String
+  account    ClientAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  label      String
+  userId     String
+  serverId   String
+  game       String        @default("mlbb")
+  playerName String?
+  createdAt  DateTime      @default(now())
+
+  @@unique([accountId, game, userId, serverId])
+}
+
+model Wallet {
+  id          String        @id @default(uuid())
+  clientId    String        @unique
+  client      Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  coinBalance Int           @default(0)
+  createdAt   DateTime      @default(now())
+  entries     WalletEntry[]
+}
+
+model WalletEntry {
+  id        String   @id @default(uuid())
+  walletId  String
+  wallet    Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  amount    Int
+  reason    String
+  createdAt DateTime @default(now())
+
+  @@index([walletId, createdAt])
+}
+
+model ClientAccount {
+  id           String          @id @default(uuid())
+  clientId     String          @unique
+  client       Client          @relation(fields: [clientId], references: [id])
+  email        String          @unique
+  passwordHash String
+  createdAt    DateTime        @default(now())
+  preferences  Preference[]
+  profiles     GamingProfile[]
+}
+
+model Preference {
+  id        String        @id @default(uuid())
+  accountId String
+  account   ClientAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  key       String
+  value     String
+
+  @@unique([accountId, key])
+}
+
+model Product {
+  id            String               @id
+  game          String
+  distributorId String
+  name          String
+  costMinor     Int
+  currency      String               @db.VarChar(3)
+  active        Boolean              @default(true)
+  syncedAt      DateTime             @default(now())
+  orders        Order[]
+  costHistory   ProductCostHistory[]
+
+  @@unique([game, distributorId])
+}
+
+model ProductCostHistory {
+  id         String   @id @default(cuid())
+  productId  String
+  costMinor  Int
+  currency   String   @db.VarChar(3)
+  recordedAt DateTime @default(now())
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, recordedAt])
+}
+
+model Setting {
+  key       String   @id
+  value     String   @db.LongText
+  updatedAt DateTime @updatedAt
+}
+
+model PromoCode {
+  id          String            @id
+  code        String            @unique
+  kind        PromoKind
+  basisPoints Int?
+  amountMinor Int?
+  maxUses     Int?
+  uses        Int               @default(0)
+  active      Boolean           @default(true)
+  expiresAt   DateTime?
+  createdAt   DateTime          @default(now())
+  redemptions PromoRedemption[]
+  orders      Order[]
+
+  @@index([active])
+}
+
+model PromoRedemption {
+  id          String    @id
+  promoCodeId String
+  promoCode   PromoCode @relation(fields: [promoCodeId], references: [id])
+  orderId     String    @unique
+  order       Order     @relation(fields: [orderId], references: [id])
+  clientId    String?
+  createdAt   DateTime  @default(now())
+
+  @@index([promoCodeId, createdAt])
+}
+
+model Order {
+  id                 String           @id @default(uuid())
+  token              String           @unique
+  clientId           String
+  client             Client           @relation(fields: [clientId], references: [id])
+  productId          String
+  product            Product          @relation(fields: [productId], references: [id])
+  userId             String
+  serverId           String
+  playerName         String?
+  priceMinor         Int
+  currency           String           @db.VarChar(3)
+  exchangeRate       Decimal?         @db.Decimal(18, 8)
+  exchangeRateAt     DateTime?
+  status             OrderStatus
+  paymentReference   String?
+  distributorOrderId String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  payments           Payment[]
+  costMinor          Int?
+  discountMinor      Int              @default(0)
+  promoCodeId        String?
+  promoCode          PromoCode?       @relation(fields: [promoCodeId], references: [id])
+  promoRedemption    PromoRedemption?
+  wacEgpMinor        Int?
+  cogsEgpMinor       Int?
+  tradingMarginMinor Int?
+  coinsCharged       Int?
+  coinValueMinor     Int?
+  refundedAt         DateTime?
+  coinsConsumed      Int?
+  markupBasisPoints  Int?
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([clientId, createdAt])
+}
+
+enum OrderStatus {
+  CREATED
+  AWAITING_PAYMENT
+  PAID
+  FULFILLING
+  DELIVERED
+  FAILED
+  EXPIRED
+  REFUNDED
+}
+
+model Payment {
+  id                String          @id @default(uuid())
+  orderId           String
+  order             Order           @relation(fields: [orderId], references: [id])
+  provider          PaymentProvider
+  providerReference String          @unique
+  amountMinor       Int
+  currency          String          @db.VarChar(3)
+  status            PaymentStatus
+  createdAt         DateTime        @default(now())
+
+  @@index([status])
+}
+
+enum PaymentProvider {
+  INSTAPAY
+  CRYPTO
+  COINS
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  EXPIRED
+}
+
+model WebhookEvent {
+  id         String   @id @default(uuid())
+  provider   String
+  eventId    String   @unique
+  receivedAt DateTime @default(now())
+  payload    Json
+}
+
+model Funding {
+  id           String   @id @default(uuid())
+  egpPaidMinor Int
+  usdtMinor    Int
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model TreasuryConsumption {
+  id            String   @id @default(uuid())
+  orderId       String   @unique
+  usdtMinor     Int
+  basisEgpMinor Int
+  wacEgpMinor   Int
+  createdAt     DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model Reconciliation {
+  id                String   @id @default(uuid())
+  expectedUsdtMinor Int
+  supplierUsdtMinor Int
+  gapUsdtMinor      Int
+  status            String   @db.VarChar(32)
+  createdAt         DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model Deposit {
+  id            String   @id @default(uuid())
+  clientId      String
+  client        Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  currency      String   @db.VarChar(3)
+  amountMinor   Int
+  rateMinor     Int
+  coins         Int
+  wacEgpMinor   Int
+  egpValueMinor Int
+  createdAt     DateTime @default(now())
+
+  @@index([clientId, createdAt])
+  @@index([createdAt])
+}
+
+model Alert {
+  id        String   @id @default(uuid())
+  kind      String   @db.VarChar(64)
+  message   String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model LevelAchievement {
+  id        String   @id @default(uuid())
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  levelKey  String
+  coins     Int
+  title     String
+  icon      String
+  color     String
+  earnedAt  DateTime @default(now())
+
+  @@unique([clientId, levelKey])
+  @@index([clientId, coins])
+}
+
+enum WalletFundingStatus {
+  PENDING
+  PAID
+  FAILED
+  EXPIRED
+}
+
+model WalletFunding {
+  id                String              @id @default(uuid())
+  clientId          String
+  client            Client              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  currency          String              @db.VarChar(3)
+  amountMinor       Int
+  rateMinor         Int
+  coins             Int
+  wacEgpMinor       Int
+  egpValueMinor     Int
+  provider          PaymentProvider
+  providerReference String              @unique
+  status            WalletFundingStatus @default(PENDING)
+  depositId         String?             @unique
+  createdAt         DateTime            @default(now())
+  paidAt            DateTime?
+
+  @@index([clientId, createdAt])
+  @@index([status])
+}

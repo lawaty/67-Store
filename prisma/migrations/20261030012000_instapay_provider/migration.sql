@@ -1,0 +1,1 @@
+ALTER TABLE `Payment` MODIFY `provider` ENUM('INSTAPAY', 'CRYPTO') NOT NULL;

@@ -1,0 +1,1 @@
+ALTER TABLE `Order` ADD COLUMN `coinValueMinor` INTEGER NULL;
