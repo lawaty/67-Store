@@ -1,0 +1,35 @@
+/**
+ * Public surface of the treasury module, re-exporting its domain models,
+ * persistence ports, and application services.
+ */
+export * from "./domain/coin-index"
+export * from "./domain/consumption"
+export * from "./domain/coverage"
+export * from "./domain/deposit"
+export * from "./domain/funding"
+export * from "./domain/reconciliation"
+export * from "./domain/report"
+export * from "./domain/wac"
+export * from "./domain/wallet-funding"
+
+export * from "./ports/consumption-repository"
+export * from "./ports/deposit-repository"
+export * from "./ports/funding-repository"
+export * from "./ports/reconciliation-repository"
+export * from "./ports/p2p-quote"
+export * from "./ports/report-repository"
+export * from "./ports/wallet-funding-repository"
+
+export * from "./application/coin-index-settings"
+export * from "./application/coin-indexer"
+export * from "./application/deposit-quote"
+export * from "./application/deposit-settings"
+export * from "./application/exchange-rate"
+export * from "./application/p2p-rate"
+export * from "./application/p2p-rate-settings"
+export * from "./application/record-deposit"
+export * from "./application/report"
+export * from "./application/service"
+export * from "./application/treasury-settings"
+export * from "./application/usable-usdt"
+export * from "./application/wallet-funding"
