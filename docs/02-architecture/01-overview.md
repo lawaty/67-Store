@@ -78,26 +78,7 @@ flowchart LR
 
 ## Deployment
 
-The host is a CyberPanel server running LiteSpeed. CyberPanel's native hosting is PHP/LSPHP, so it does not run the Next.js app itself.
-
-- Next.js builds with `output: 'standalone'` and runs as a Node 20 process on `127.0.0.1:3000` under a systemd unit.
-- LiteSpeed reverse-proxies the site's domain to that port. SSL is issued by CyberPanel's ACME.
-- LiteSpeed cache is disabled for `/api/*`, `/management/*` and order pages, because every one of them is per-request.
-- The app directory is owned by the site user; secrets are environment variables in the systemd unit, never in the repository.
-- The G2Bulk API key is IP-locked to the server's public IP.
-
-```mermaid
-flowchart LR
-  Browser --> LiteSpeed
-  LiteSpeed -- reverse proxy --> NodeApp[Next.js on 127.0.0.1:3000]
-  NodeApp --> DB[(MariaDB)]
-  NodeApp --> InstaPay
-  NodeApp --> Crypto
-  NodeApp --> G2Bulk
-  Timer[systemd timer] --> Job[Sync and poll job]
-  Job --> DB
-  Job --> G2Bulk
-```
+Deployment, environment variables, migrations, job scheduling, and the live/sandbox switch are owned by [05 Deployment](05-deployment.md).
 
 ## Boundaries
 

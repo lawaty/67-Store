@@ -27,7 +27,10 @@ What 67 Store sells and how the business works.
 | [01 Overview](01-domain/01-overview.md) | What is 67 Store and what are its bounded contexts? |
 | [02 Distributors](01-domain/02-distributors.md) | Who supplies topups to us? |
 | [03 Glossary](01-domain/03-glossary.md) | What is the ubiquitous language? |
-| [04 Pricing and markup](01-domain/04-pricing-markup.md) | How is the sell markup resolved and snapshotted? |
+| [04 Pricing and markup](01-domain/04-pricing-markup.md) | How are the coin index, sell markup, and coin price resolved and snapshotted? |
+| [05 Treasury](01-domain/05-treasury.md) | What are funding lots, WAC, consumption, and average coin funding cost? (Draft) |
+| [06 Credits](01-domain/06-credits.md) | How do coins, wallets, deposits, and coverage work? (Draft) |
+| [07 Orders](01-domain/07-orders.md) | What is the order lifecycle and financial snapshot? (Draft) |
 
 ## 02 — Architecture
 
@@ -40,6 +43,7 @@ How the software is put together.
 | [02 Distributor Integration](02-architecture/02-distributor-integration.md) | How are distributor APIs called? |
 | [03 P2P Rate Integration](02-architecture/03-p2p-rate-integration.md) | How is the P2P USDT/EGP market rate fetched and cached? |
 | [04 Components](02-architecture/04-components.md) | What components live inside the web app? |
+| [05 Deployment](02-architecture/05-deployment.md) | How is the web app deployed, migrated, scheduled, and run in live vs sandbox? |
 
 ## 03 — Specs
 
@@ -49,12 +53,14 @@ What each deliverable must do.
 | --- | --- |
 | [README](03-specs/README.md) | How is the specs section organised? |
 | [01 Web App](03-specs/01-web-app.md) | What must the topup website do? |
-| [02 Distributor API Integration](03-specs/02-distributor-api.md) | What is the G2Bulk adapter contract? |
+| [02 Distributor API Integration](03-specs/02-distributor-api.md) | What is the distributor adapter (currently G2Bulk) contract? |
 | [03 Mobile Apps](03-specs/03-mobile-apps.md) | What must the mobile clients do? |
 | [04 Scripts](03-specs/04-scripts.md) | What operations tooling is needed? |
 | [05 Payments](03-specs/05-payments.md) | How is client money taken and reconciled? |
 | [06 Back Office](03-specs/06-back-office.md) | What does the admin back office do? |
 | [07 Treasury and Credits](03-specs/07-treasury-and-credits.md) | How is USDT held, priced, and sold as coins? |
+| [JNY-001 Guest buys a topup](03-specs/journeys/JNY-001-guest-buys-topup-end-to-end.md) | How does a guest buy a topup end to end? (In progress) |
+| [Stories](03-specs/README.md#stories) | Story files STF/CRD (created next). |
 
 ## Reading order
 New to the project: read `00 Method`, then `01 Domain`, then `02 Architecture`,

@@ -17,10 +17,14 @@ The product is a games topup store. The method is TDD and DDD, defined in
   for that change: an earlier approval of a different change, or a passing
   "commit", is not a confirmation. Without it, the work stops in the working
   tree.
-- **Never modify the git index except to stage a mechanical edit.** That bans
-  `git add` for anything else, plus `git commit`, `git push`, `git rm --cached`,
-  `git restore --staged` and `git reset`. The index is the owner's review state,
-  not ours to manage.
+- **Stage UI work and test artifacts as you produce them.** The agent is
+  permitted and encouraged to auto-stage these changes so the owner can review
+  them in the index. Staging is not committing: the other rules in this section
+  still govern commits and pushes.
+- **Never modify the git index except to stage a mechanical edit, UI work, or
+  test artifacts.** That bans `git add` for anything else, plus `git commit`,
+  `git push`, `git rm --cached`, `git restore --staged` and `git reset`. The
+  index is the owner's review state, not ours to manage.
 - **Never unstage the owner's files** — not to tidy up, not to make status read
   better. A non-empty index means they are mid-review: leave every entry as it
   is, even if a path looks stale or wrong.

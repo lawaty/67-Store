@@ -8,12 +8,13 @@ Ubiquitous language. A term enters code only after it is defined here.
 
 | Term | Meaning |
 | --- | --- |
-| Distributor | The upstream provider that delivers topups to us and is paid wholesale (G2Bulk). |
+| Distributor | The upstream provider that delivers topups to us and is paid wholesale. |
 | Client | Anyone who buys from 67 Store. |
 | Client account | A registered client's record: credentials, saved preferences and order history. |
 | Gaming profile | A saved player identity on a client account: a label, a user id and a server id, reused for repeat topups. |
 | Wallet | A client's balance in 67 Coins. It is shown in the account and credited by the back office. |
-| Coin (67 Coins) | The customer's prepaid credit in the wallet. One coin equals one USDT of distributor value after the coin switch; before it, one coin equals the configured EGP value. |
+| Coin (67 Coins) | The customer's prepaid credit in the wallet. One coin is worth the coin value, initially 1 cent (0.01 USDT); the coin index moves it with distributor costs. |
+| Coin index | A dimensionless multiplier that tracks changes in distributor product costs. Coin value = index USD minor. Defined in [Pricing and markup](04-pricing-markup.md#coin-index). |
 | Preference | A value a client saves on its account, such as a player id or a currency. |
 | Player | The in-game account that receives a topup. For MLBB it is the pair `userId` and `serverId` (zone). |
 | Topup | A purchase of in-game currency or a pass, delivered to a player's game account. |
@@ -38,19 +39,25 @@ Ubiquitous language. A term enters code only after it is defined here.
 | Distributor cost snapshots | The distributor price recorded on the order at creation, so margin does not drift when the catalogue price changes. |
 | USDT | The dollar-denominated token we buy and load into the distributor; the unit of account behind every coin. |
 | Treasury | The USDT we hold with the distributor, its EGP cost, and the records that reconcile them. |
-| Funding lot | One purchase of USDT loaded into the distributor, recording the currency paid, amount, fees, USDT received and EGP basis. Append-only. |
+| Funding lot | One purchase of USDT loaded into the distributor, recording the total EGP paid including fees and the USDT received. Append-only. |
 | WAC | Weighted average cost: the remaining EGP basis divided by the remaining USDT. Buying moves it; spending leaves it unchanged. |
 | Consumption | The USDT an order removes from the treasury when it is delivered, recorded once per order at the order's snapshot WAC. |
 | COGS | Cost of goods sold: what a delivered product cost us in EGP, at the order's snapshot WAC. |
 | Deposit | A customer payment in a currency that issues coins at that currency's deposit rate. |
-| Deposit rate | How many units of a currency buy one USDT, and therefore one coin after the switch. |
-| Coverage | The distributor USDT balance divided by the coins outstanding; how much prepaid credit is backed by held USDT. |
-| Free USDT | The distributor balance above coins outstanding; the only part that may be withdrawn. |
+| Deposit rate | How many minor units of a currency buy one coin. The USD base is the coin value; EGP uses `max(WAC, market)`; other currencies use their peg plus spread. |
+| Average coin funding cost | The EGP cost of issued coins: Σ deposit EGP value ÷ Σ coins issued. An admin accounting metric; it does not drive pricing. See [Treasury](05-treasury.md#average-coin-funding-cost). |
+| Total USDT (الإجمالي) | The live distributor balance; recorded USDT plus free USDT. |
+| Recorded USDT (المسجل) | Confirmed funding minus consumption: the treasury's book balance, and the basis for reserved calculations. |
+| Free USDT (الحر / غير المسجل) | Total USDT minus recorded USDT: the live balance not in the books. |
+| Reserved USDT (المحجوز) | The USDT set aside for outstanding coins: coins outstanding × current coin value. |
+| Available USDT (المتاح) | Recorded USDT minus reserved USDT; the amount that determines sellable coins and product buyability. |
+| Customer coin liability (التزامات العملاء) | The coins owed to clients, equal to coins outstanding; reserved USDT backs it. |
+| Coverage | The live distributor USDT balance divided by reserved USDT. An internal invariant check, not a dashboard metric. |
 | Trading margin | The markup in USDT, known at delivery: sell price minus distributor cost. Independent of exchange rates. |
 | FX result | The gain or loss at deposit from holding USDT bought earlier, valued in EGP. |
-| Break-even rate | The EGP-per-USDT rate at which a deposit neither gains nor loses against WAC. |
+| Break-even rate | The EGP-per-USDT rate at which a deposit neither gains nor loses against WAC; currently the same value as WAC. |
 | Reconciliation | The daily comparison of the expected USDT balance (funding minus consumption) with the distributor balance. |
-| Order snapshot | The distributor cost, WAC, COGS, price and margin recorded on an order at placement so they never drift. |
+| Order snapshot | The distributor cost, WAC, COGS, price, margin and coin value recorded on an order at placement so they never drift. |
 | P2P rate | The EGP price of 1 USDT on the peer-to-peer market; the dashboard's market-rate reference. |
-| coins outstanding | The sum of all wallet coin balances; the reserved side of coverage. |
-| coin regime | Whether one coin is worth 1 USDT or the configured EGP value. |
+| Trend window | The trend chart's selectable 7/14/30-day view (default 30), moved in whole-day steps across up to 90 days of retained history; distinct from the P2P aggregation window. |
+| Coins outstanding | The sum of all wallet coin balances; reserved at the current coin value. |

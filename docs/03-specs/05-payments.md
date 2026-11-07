@@ -42,8 +42,8 @@ Adding a provider means adding an adapter, not editing ordering.
 
 - A client wallet holds a balance in coins.
 - Paying with coins debits the wallet at checkout and writes a ledger entry.
-- 1 coin = `coin:egp_value` EGP (default 1).
-- The coin cost of an order is derived from the EGP price and the configured coin value, rounded up to whole coins.
+- The coin's value is set by the coin index; see [04 Pricing and markup](../01-domain/04-pricing-markup.md#coin-index).
+- The coin cost of an order is `ceil(USD sell price ÷ coin value)`, rounded up to whole coins.
 - A coin payment with insufficient balance is rejected and the order stays unpaid.
 
 ## Money rules

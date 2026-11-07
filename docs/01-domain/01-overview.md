@@ -11,7 +11,7 @@ player's game account.
 
 ## Business model
 
-Three parties. **Distributors** deliver topups to us through their APIs; G2Bulk is
+Three parties. **Distributors** deliver topups to us through their APIs; the distributor is
 the first. **Clients** buy topups for their own or others’ game accounts. All use
 the same storefront and account and are served from the first release.
 
@@ -51,7 +51,7 @@ Aggregates and events for orders are defined in [01 Web App](../03-specs/01-web-
 
 ## Current stage
 
-Building the web app against G2Bulk for clients. The first catalogue is Mobile
+Building the web app against the distributor for clients. The first catalogue is Mobile
 Legends: Bang Bang; other games follow.
 
 ## Open questions
