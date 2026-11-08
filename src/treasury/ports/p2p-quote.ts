@@ -14,6 +14,17 @@ export type P2pPriceRange = {
   readonly outlierCount?: number
 }
 
+export type P2pFetchStats = {
+  readonly minEgpPerUsdtMinor: number
+  readonly maxEgpPerUsdtMinor: number
+  readonly avgEgpPerUsdtMinor: number
+  readonly offerCount: number
+  readonly priceSumMinor: number
+  readonly sumSquaresMinor: number
+  readonly stdDevEgpPerUsdtMinor: number
+  readonly outlierCount: number
+}
+
 export type P2pRate = {
   readonly egpPerUsdtMinor: number
   readonly fetchedAt: string | null
@@ -30,6 +41,8 @@ export type P2pQuote = {
   readonly bankTransferEgpPerUsdtMinor?: number | null
   readonly vodafoneEgpPerUsdtMinor?: number | null
   readonly range?: P2pPriceRange | null
+  readonly currentEgpPerUsdtMinor?: number | null
+  readonly allEligibleStats?: P2pFetchStats | null
 }
 
 export type P2pQuoteOptions = { readonly outlierSigma?: number }

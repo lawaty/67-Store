@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { createP2pRateReader, readP2pLatestRate } from "@/treasury/application/p2p-rate"
 import { P2P_RATE_HISTORY_KEY, P2P_RATE_LAST_KEY, P2P_SYNC_INTERVAL_SECONDS_KEY } from "@/treasury/application/p2p-rate-settings"
+import { P2P_RATE_TODAY_KEY } from "@/treasury/application/p2p-today"
 import { SettingsRepository } from "@/shared/settings-repository"
 import { P2pQuoteProvider } from "@/treasury/application/p2p-rate"
 
@@ -520,6 +521,149 @@ describe("p2p-rate reader", () => {
         stale: true,
       })
     })
+  })
+
+  it("a fresh quote writes the snapshot with the four values", async () => {
+    const store: Record<string, string> = {}
+    const settings = makeSettings(store)
+    const provider: P2pQuoteProvider = {
+      readQuote: async () => ({
+        egpPerUsdtMinor: 5200,
+        currentEgpPerUsdtMinor: 4900,
+        fetchedAt: "2024-01-01T15:30:00.000Z",
+        allEligibleStats: {
+          minEgpPerUsdtMinor: 4800,
+          maxEgpPerUsdtMinor: 5400,
+          avgEgpPerUsdtMinor: 5070,
+          offerCount: 10,
+          priceSumMinor: 50700,
+          sumSquaresMinor: 257449000,
+          stdDevEgpPerUsdtMinor: 190,
+          outlierCount: 2,
+        },
+      }),
+    }
+    const reader = createP2pRateReader({ provider, settings, now: () => "2024-01-01T15:30:00.000Z" })
+    await reader.read()
+    const snapshot = JSON.parse(store[P2P_RATE_TODAY_KEY])
+    expect(snapshot.day).toBe("2024-01-01")
+    expect(snapshot.minEgpPerUsdtMinor).toBe(4800)
+    expect(snapshot.maxEgpPerUsdtMinor).toBe(5400)
+    expect(snapshot.avgEgpPerUsdtMinor).toBe(5070)
+    expect(snapshot.currentEgpPerUsdtMinor).toBe(4900)
+  })
+
+  it("a second fetch on the same Cairo day merges min/max/avg and updates current", async () => {
+    const store: Record<string, string> = {}
+    const settings = makeSettings(store)
+    let calls = 0
+    const quotes = [
+      {
+        egpPerUsdtMinor: 5200,
+        currentEgpPerUsdtMinor: 4900,
+        fetchedAt: "2024-01-01T10:00:00.000Z",
+        allEligibleStats: { minEgpPerUsdtMinor: 4800, maxEgpPerUsdtMinor: 5400, avgEgpPerUsdtMinor: 5100, offerCount: 2, priceSumMinor: 10200, sumSquaresMinor: 52020000, stdDevEgpPerUsdtMinor: 300, outlierCount: 0 },
+      },
+      {
+        egpPerUsdtMinor: 5300,
+        currentEgpPerUsdtMinor: 4700,
+        fetchedAt: "2024-01-01T13:00:00.000Z",
+        allEligibleStats: { minEgpPerUsdtMinor: 4600, maxEgpPerUsdtMinor: 5500, avgEgpPerUsdtMinor: 5050, offerCount: 2, priceSumMinor: 10100, sumSquaresMinor: 51410000, stdDevEgpPerUsdtMinor: 450, outlierCount: 1 },
+      },
+    ]
+    const provider: P2pQuoteProvider = { readQuote: async () => quotes[calls++]! }
+    let nowCalls = 0
+    const times = ["2024-01-01T10:00:00.000Z", "2024-01-01T10:00:00.000Z", "2024-01-01T10:00:00.000Z", "2024-01-01T13:00:00.001Z", "2024-01-01T13:00:00.001Z", "2024-01-01T13:00:00.001Z"]
+    const now = () => times[Math.min(nowCalls++, times.length - 1)]!
+    const reader = createP2pRateReader({ provider, settings, now })
+    await reader.read()
+    await reader.read()
+    const snapshot = JSON.parse(store[P2P_RATE_TODAY_KEY])
+    expect(snapshot.day).toBe("2024-01-01")
+    expect(snapshot.minEgpPerUsdtMinor).toBe(4600)
+    expect(snapshot.maxEgpPerUsdtMinor).toBe(5500)
+    expect(snapshot.avgEgpPerUsdtMinor).toBe(Math.floor(20300 / 4 + 0.5))
+    expect(snapshot.currentEgpPerUsdtMinor).toBe(4700)
+  })
+
+  it("a fetch on a new Cairo day resets", async () => {
+    const store: Record<string, string> = {}
+    const settings = makeSettings(store)
+    let calls = 0
+    const quotes = [
+      {
+        egpPerUsdtMinor: 5200,
+        currentEgpPerUsdtMinor: 4900,
+        fetchedAt: "2024-01-01T21:30:00.000Z", // Cairo 23:30 same day
+        allEligibleStats: { minEgpPerUsdtMinor: 4800, maxEgpPerUsdtMinor: 5400, avgEgpPerUsdtMinor: 5100, offerCount: 2, priceSumMinor: 10200, sumSquaresMinor: 52020000, stdDevEgpPerUsdtMinor: 300, outlierCount: 0 },
+      },
+      {
+        egpPerUsdtMinor: 5300,
+        currentEgpPerUsdtMinor: 5000,
+        fetchedAt: "2024-01-01T22:30:00.000Z", // Cairo 00:30 next day
+        allEligibleStats: { minEgpPerUsdtMinor: 5000, maxEgpPerUsdtMinor: 5300, avgEgpPerUsdtMinor: 5150, offerCount: 2, priceSumMinor: 10300, sumSquaresMinor: 53090000, stdDevEgpPerUsdtMinor: 150, outlierCount: 0 },
+      },
+    ]
+    const provider: P2pQuoteProvider = { readQuote: async () => quotes[calls++]! }
+    let nowCalls = 0
+    const times = ["2024-01-01T21:30:00.000Z", "2024-01-01T21:30:00.000Z", "2024-01-01T21:30:00.000Z", "2024-01-01T22:30:00.001Z", "2024-01-01T22:30:00.001Z", "2024-01-01T22:30:00.001Z"]
+    const now = () => times[Math.min(nowCalls++, times.length - 1)]!
+    const reader = createP2pRateReader({ provider, settings, now })
+    await reader.read()
+    await reader.read()
+    const snapshot = JSON.parse(store[P2P_RATE_TODAY_KEY])
+    expect(snapshot.day).toBe("2024-01-02")
+    expect(snapshot.minEgpPerUsdtMinor).toBe(5000)
+    expect(snapshot.maxEgpPerUsdtMinor).toBe(5300)
+    expect(snapshot.avgEgpPerUsdtMinor).toBe(5150)
+    expect(snapshot.currentEgpPerUsdtMinor).toBe(5000)
+    expect(snapshot.offerCount).toBe(2)
+  })
+
+  it("the history point uses the all-eligible stats", async () => {
+    const store: Record<string, string> = {}
+    const settings = makeSettings(store)
+    const provider: P2pQuoteProvider = {
+      readQuote: async () => ({
+        egpPerUsdtMinor: 5200,
+        currentEgpPerUsdtMinor: 4900,
+        fetchedAt: "2024-01-01T15:30:00.000Z",
+        allEligibleStats: { minEgpPerUsdtMinor: 4800, maxEgpPerUsdtMinor: 5400, avgEgpPerUsdtMinor: 5070, offerCount: 10, priceSumMinor: 50700, sumSquaresMinor: 257449000, stdDevEgpPerUsdtMinor: 190, outlierCount: 2 },
+      }),
+    }
+    const now = () => "2024-01-01T15:30:00.000Z"
+    const reader = createP2pRateReader({ provider, settings, now })
+    await reader.read()
+    expect(JSON.parse(store[P2P_RATE_HISTORY_KEY])).toEqual([
+      {
+        day: "2024-01-01",
+        hour: "2024-01-01T15:00:00.000Z",
+        egpPerUsdtMinor: 4900,
+        minEgpPerUsdtMinor: 4800,
+        avgEgpPerUsdtMinor: 5070,
+        maxEgpPerUsdtMinor: 5400,
+        offerCount: 10,
+        priceSumMinor: 50700,
+        stdDevEgpPerUsdtMinor: 190,
+        outlierCount: 2,
+        lastObservedAt: "2024-01-01T15:30:00.000Z",
+      },
+    ])
+  })
+
+  it("the reader's egpPerUsdtMinor is the cheapest Vodafone current, with the old headline only as a fallback when current is null", async () => {
+    let call = 0
+    const quotes = [
+      { egpPerUsdtMinor: 5200, currentEgpPerUsdtMinor: 4900, fetchedAt: "2024-01-01T00:00:00.000Z", allEligibleStats: { minEgpPerUsdtMinor: 4800, maxEgpPerUsdtMinor: 5400, avgEgpPerUsdtMinor: 5070, offerCount: 10, priceSumMinor: 50700, sumSquaresMinor: 257449000, stdDevEgpPerUsdtMinor: 190, outlierCount: 2 } },
+      { egpPerUsdtMinor: 5200, currentEgpPerUsdtMinor: null, fetchedAt: "2024-01-01T01:00:00.001Z", allEligibleStats: { minEgpPerUsdtMinor: 4800, maxEgpPerUsdtMinor: 5400, avgEgpPerUsdtMinor: 5070, offerCount: 10, priceSumMinor: 50700, sumSquaresMinor: 257449000, stdDevEgpPerUsdtMinor: 190, outlierCount: 2 } },
+    ]
+    const provider: P2pQuoteProvider = { readQuote: async () => quotes[call++]! }
+    let nowCalls = 0
+    const times = ["2024-01-01T00:00:00.000Z", "2024-01-01T00:00:00.000Z", "2024-01-01T00:00:00.000Z", "2024-01-01T01:00:00.001Z", "2024-01-01T01:00:00.001Z", "2024-01-01T01:00:00.001Z"]
+    const now = () => times[Math.min(nowCalls++, times.length - 1)]!
+    const reader = createP2pRateReader({ provider, settings: makeSettings({}), now })
+    expect((await reader.read())?.egpPerUsdtMinor).toBe(4900)
+    expect((await reader.read())?.egpPerUsdtMinor).toBe(5200)
   })
 
   it("passes outlierSigma from settings to provider (default 2, stored 3)", async () => {

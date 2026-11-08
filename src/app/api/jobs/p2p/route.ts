@@ -5,7 +5,7 @@
  */
 
 import { timingSafeEqual } from "node:crypto"
-import { getContainer } from "@/api/container"
+import { getContainer, readP2pToday } from "@/api/container"
 import { readEnv } from "@/env"
 
 export async function POST(request: Request): Promise<Response> {
@@ -23,6 +23,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const rate = await getContainer().p2pRate.read()
+  const snapshot = await readP2pToday(new Date().toISOString())
   return Response.json(
     {
       ok: rate !== null,
@@ -30,6 +31,14 @@ export async function POST(request: Request): Promise<Response> {
       source: rate?.source ?? null,
       stale: rate?.stale ?? null,
       egpPerUsdtMinor: rate?.egpPerUsdtMinor ?? null,
+      today: snapshot
+        ? {
+            minEgpPerUsdtMinor: snapshot.snapshot.minEgpPerUsdtMinor,
+            maxEgpPerUsdtMinor: snapshot.snapshot.maxEgpPerUsdtMinor,
+            avgEgpPerUsdtMinor: snapshot.snapshot.avgEgpPerUsdtMinor,
+            currentEgpPerUsdtMinor: snapshot.snapshot.currentEgpPerUsdtMinor,
+          }
+        : null,
     },
     { status: 200 },
   )

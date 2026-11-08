@@ -6,10 +6,27 @@
  */
 import { P2pQuote } from "@/treasury"
 import { P2pRateError } from "@/treasury"
-import type { P2pPriceRange } from "@/treasury"
+import type { P2pPriceRange, P2pFetchStats } from "@/treasury"
 import { DEFAULT_P2P_OUTLIER_SIGMA, MAX_P2P_OUTLIER_SIGMA, MIN_P2P_OUTLIER_SIGMA } from "@/shared/p2p-settings"
+import {
+  parsePriceToMinor as parsePriceToMinorImpl,
+  isEligibleAd as isEligibleAdImpl,
+  isEligibleVodafoneCash,
+  hasPaymentMethod,
+} from "./eligibility"
 
-export type { P2pPriceRange }
+export type { P2pPriceRange, P2pFetchStats }
+
+// Compatibility re-exports (older code may import from quote.ts).
+export {
+  MIN_OFFER_TRADABLE_USDT,
+  parsePriceToMinor,
+  parseTradableQuantity,
+  isEligibleAd,
+  isEligibleVodafoneCash,
+  extractTradeMethodNames,
+  hasPaymentMethod,
+} from "./eligibility"
 
 export type P2pMethodQuote = {
   readonly egpPerUsdtMinor: number
@@ -17,10 +34,11 @@ export type P2pMethodQuote = {
   readonly vodafoneEgpPerUsdtMinor: number | null
   readonly range: P2pPriceRange | null
   readonly fetchedAt: string
+  readonly currentEgpPerUsdtMinor: number | null
+  readonly allEligibleStats: P2pFetchStats | null
 }
 
 export const P2P_OUTLIER_SIGMA = DEFAULT_P2P_OUTLIER_SIGMA
-const MIN_OFFER_TRADABLE_USDT = 200
 
 function normalizeOutlierSigma(sigma: number | undefined): number {
   if (sigma === undefined) return DEFAULT_P2P_OUTLIER_SIGMA
@@ -55,63 +73,6 @@ function excludeOutliers(prices: readonly number[], sigma: number): { kept: numb
   return { kept, outlierCount: prices.length - kept.length }
 }
 
-function parsePriceToMinor(price: string): number | null {
-  if (typeof price !== "string") {
-    return null
-  }
-  // must not contain spaces
-  if (price.trim() !== price) {
-    return null
-  }
-  // check format - optional sign? prices are positive; but be strict
-  if (!/^\d+(\.\d+)?$/.test(price)) {
-    return null
-  }
-  const parts = price.split(".")
-  if (parts.length === 1) {
-    const intPart = parts[0]
-    const minorStr = intPart + "00"
-    // check if it's integer string without leading zeros issues except for "0" itself - but price must be positive
-    if (intPart === "0") {
-      return null
-    }
-    // disallow leading zeros like 0123? better to be strict - "0123" would fail ^\d+ but "0" is caught; numbers like 012 are not decimal strings in normal form, but regex allows 0 followed by digits only if we had ^0\d+ which we don't - ^\d+ means one or more digits, so 012 would match as 012 as the whole string? "012" matches ^\d+ as "012" (all digits) - but that's not the same as decimal string normalization; better to reject leading zeros unless it's exactly "0"
-    if (intPart.length > 1 && intPart.startsWith("0")) {
-      return null
-    }
-    const minor = Number(minorStr)
-    if (!Number.isSafeInteger(minor) || minor <= 0) {
-      return null
-    }
-    return minor
-  } else if (parts.length === 2) {
-    const intPart = parts[0]
-    const fracPart = parts[1]
-    if (fracPart.length > 2) {
-      return null
-    }
-    if (intPart === "0" && fracPart.length === 0) {
-      return null
-    }
-    if (intPart.length > 1 && intPart.startsWith("0")) {
-      return null
-    }
-    const fracPadded = fracPart.padEnd(2, "0")
-    const minorStr = intPart + fracPadded
-    // also check combined - e.g. if intPart is "0" that's fine as long as result > 0
-    const combined = BigInt(intPart === "" ? "0" : intPart) * BigInt(100) + BigInt(fracPadded)
-    if (combined <= BigInt(0)) {
-      return null
-    }
-    const minor = Number(minorStr)
-    if (!Number.isSafeInteger(minor) || minor <= 0) {
-      return null
-    }
-    return minor
-  }
-  return null
-}
-
 function validateEnvelope(body: unknown): unknown[] {
   if (typeof body !== "object" || body === null) {
     throw new P2pRateError(0, "invalid envelope")
@@ -126,43 +87,26 @@ function validateEnvelope(body: unknown): unknown[] {
   return b.data
 }
 
-function parseTradableQuantity(value: unknown): number | null {
-  if (typeof value !== "string" || !/^\d+(\.\d+)?$/.test(value)) {
-    return null
-  }
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : null
+function advOf(ad: unknown): Record<string, unknown> | null {
+  if (typeof ad !== "object" || ad === null) return null
+  const adv = (ad as Record<string, unknown>).adv
+  if (typeof adv !== "object" || adv === null) return null
+  return adv as Record<string, unknown>
 }
 
-function isEligibleAd(ad: Record<string, unknown>, adv: Record<string, unknown>): boolean {
-  if (ad.privilegeType !== null && ad.privilegeType !== undefined) {
-    return false
-  }
-  const tradableQuantity = parseTradableQuantity(adv.tradableQuantity)
-  return tradableQuantity !== null && tradableQuantity >= MIN_OFFER_TRADABLE_USDT
+function eligiblePrice(ad: unknown): number | null {
+  if (!isEligibleAdImpl(ad)) return null
+  const adv = advOf(ad)
+  if (!adv) return null
+  return parsePriceToMinorImpl(adv.price)
 }
 
 function collectValidPrices(data: unknown[]): number[] {
   const validPrices: number[] = []
   for (const ad of data) {
-    if (typeof ad !== "object" || ad === null) {
-      continue
-    }
-    const adRecord = ad as Record<string, unknown>
-    const adv = adRecord.adv
-    if (typeof adv !== "object" || adv === null) {
-      continue
-    }
-    const advRecord = adv as Record<string, unknown>
-    if (!isEligibleAd(adRecord, advRecord)) {
-      continue
-    }
-    const price = advRecord.price
-    if (typeof price === "string") {
-      const minor = parsePriceToMinor(price)
-      if (minor !== null && minor > 0 && Number.isSafeInteger(minor)) {
-        validPrices.push(minor)
-      }
+    const minor = eligiblePrice(ad)
+    if (minor !== null) {
+      validPrices.push(minor)
     }
   }
   return validPrices
@@ -224,27 +168,29 @@ function priceRangeFromPrices(prices: number[], sigma: number): P2pPriceRange | 
   }
 }
 
-function extractTradeMethodNames(adv: Record<string, unknown>): string[] {
-  const methods = adv.tradeMethods
-  if (!Array.isArray(methods)) {
-    return []
+export function computeAllEligibleStats(prices: number[], sigma: number): P2pFetchStats | null {
+  if (prices.length === 0) {
+    return null
   }
-  const names: string[] = []
-  for (const m of methods) {
-    if (typeof m !== "object" || m === null) {
-      continue
-    }
-    const name = (m as Record<string, unknown>).tradeMethodName
-    if (typeof name === "string") {
-      names.push(name)
-    }
+  const { kept, outlierCount } = excludeOutliers(prices, sigma)
+  if (kept.length === 0) {
+    return null
   }
-  return names
-}
-
-function hasMethod(methodNames: string[], needle: string): boolean {
-  const n = needle.toLowerCase()
-  return methodNames.some((name) => name.toLowerCase().includes(n))
+  const sorted = [...kept].sort((a, b) => a - b)
+  const sum = sorted.reduce((total, price) => total + price, 0)
+  const sumSquares = sorted.reduce((total, price) => total + price * price, 0)
+  const avg = Math.floor(sum / sorted.length + 0.5)
+  const stdDevEgpPerUsdtMinor = Math.floor(meanAndStdDev(kept).stdDev + 0.5)
+  return {
+    minEgpPerUsdtMinor: sorted[0],
+    maxEgpPerUsdtMinor: sorted[sorted.length - 1],
+    avgEgpPerUsdtMinor: avg,
+    offerCount: sorted.length,
+    priceSumMinor: sum,
+    sumSquaresMinor: sumSquares,
+    stdDevEgpPerUsdtMinor,
+    outlierCount,
+  }
 }
 
 export function p2pQuoteFromAds(body: unknown, fetchedAt: string, outlierSigma = P2P_OUTLIER_SIGMA): P2pQuote {
@@ -261,30 +207,25 @@ export function p2pMethodQuoteFromAds(body: unknown, fetchedAt: string, outlierS
   const bankTransferPrices: number[] = []
   const vodafonePrices: number[] = []
   const p2pPrices: number[] = []
+  const allEligiblePrices: number[] = []
+  const eligibleVodafonePrices: number[] = []
+
   for (const ad of data) {
     if (typeof ad !== "object" || ad === null) {
       continue
     }
     const adRecord = ad as Record<string, unknown>
-    const adv = adRecord.adv
-    if (typeof adv !== "object" || adv === null) {
+    const minor = eligiblePrice(adRecord)
+    if (minor === null) {
       continue
     }
-    const advRecord = adv as Record<string, unknown>
-    if (!isEligibleAd(adRecord, advRecord)) {
-      continue
+    allEligiblePrices.push(minor)
+    if (isEligibleVodafoneCash(adRecord)) {
+      eligibleVodafonePrices.push(minor)
     }
-    const price = advRecord.price
-    if (typeof price !== "string") {
-      continue
-    }
-    const minor = parsePriceToMinor(price)
-    if (minor === null || minor <= 0 || !Number.isSafeInteger(minor)) {
-      continue
-    }
-    const methodNames = extractTradeMethodNames(advRecord)
-    const hasBank = hasMethod(methodNames, "bank")
-    const hasVodafone = hasMethod(methodNames, "vodafone")
+
+    const hasBank = hasPaymentMethod(adRecord, "bank")
+    const hasVodafone = hasPaymentMethod(adRecord, "vodafone")
     if (hasBank) {
       bankTransferPrices.push(minor)
     }
@@ -301,6 +242,9 @@ export function p2pMethodQuoteFromAds(body: unknown, fetchedAt: string, outlierS
   const vodafoneEgpPerUsdtMinor =
     vodafonePrices.length >= 3 ? filteredMedianOfTop10Cheapest(vodafonePrices, sigma) : null
   const range = priceRangeFromPrices(p2pPrices, sigma)
+  const currentEgpPerUsdtMinor =
+    eligibleVodafonePrices.length > 0 ? Math.min(...eligibleVodafonePrices) : null
+  const allEligibleStats = computeAllEligibleStats(allEligiblePrices, sigma)
 
   let egpPerUsdtMinor: number
   if (bankTransferEgpPerUsdtMinor !== null && vodafoneEgpPerUsdtMinor !== null) {
@@ -313,5 +257,14 @@ export function p2pMethodQuoteFromAds(body: unknown, fetchedAt: string, outlierS
     throw new P2pRateError(0, "too few ads")
   }
 
-  return { egpPerUsdtMinor, bankTransferEgpPerUsdtMinor, vodafoneEgpPerUsdtMinor, range, fetchedAt }
+  return {
+    egpPerUsdtMinor,
+    bankTransferEgpPerUsdtMinor,
+    vodafoneEgpPerUsdtMinor,
+    range,
+    fetchedAt,
+    currentEgpPerUsdtMinor,
+    allEligibleStats,
+  }
 }
+

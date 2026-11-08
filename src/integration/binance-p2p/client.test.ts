@@ -112,4 +112,35 @@ describe("binance-p2p client", () => {
     expect(qDefault.range?.outlierCount).toBe(0)
     expect(qDefault.range?.adCount).toBe(6)
   })
+
+  it("passes currentEgpPerUsdtMinor and allEligibleStats through from parser", async () => {
+    const fetchStub = async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        code: "000000",
+        data: [
+          { adv: { price: "51.00", tradableQuantity: "200.00", tradeMethods: [{ tradeMethodName: "Bank Transfer" }] } },
+          { adv: { price: "52.00", tradableQuantity: "200.00", tradeMethods: [{ tradeMethodName: "Bank Transfer" }] } },
+          { adv: { price: "53.00", tradableQuantity: "200.00", tradeMethods: [{ tradeMethodName: "Bank Transfer" }] } },
+          { adv: { price: "48.00", tradableQuantity: "200.00", tradeMethods: [{ tradeMethodName: "Vodafone Cash" }] } },
+          { adv: { price: "49.00", tradableQuantity: "200.00", tradeMethods: [{ tradeMethodName: "Vodafone Cash" }] } },
+          { adv: { price: "50.00", tradableQuantity: "200.00", tradeMethods: [{ tradeMethodName: "Vodafone Cash" }] } },
+        ],
+      }),
+    })
+    const client = createBinanceP2p({ fetch: fetchStub as any, now: () => "2024-06-01T12:00:00.000Z" })
+    const quote = await client.readQuote()
+    expect(quote.currentEgpPerUsdtMinor).toBe(4800)
+    expect(quote.allEligibleStats).toEqual({
+      minEgpPerUsdtMinor: 4800,
+      maxEgpPerUsdtMinor: 5300,
+      avgEgpPerUsdtMinor: 5050,
+      offerCount: 6,
+      priceSumMinor: 30300,
+      sumSquaresMinor: 153190000,
+      stdDevEgpPerUsdtMinor: 171,
+      outlierCount: 0,
+    })
+  })
 })
