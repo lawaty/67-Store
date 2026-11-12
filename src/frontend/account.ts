@@ -2,12 +2,13 @@
  * Server-side page loaders for account data that attach session context via the
  * API and redirect to login when authentication fails.
  */
+import { cache } from "react"
 import { redirect } from "next/navigation"
 import type { AccountDto, ProfileDto } from "@/api/contracts"
 import { ApiError } from "./api"
 import { serverApi } from "./server"
 
-export async function getAccount(): Promise<AccountDto | null> {
+export const getAccount = cache(async (): Promise<AccountDto | null> => {
   try {
     return await (await serverApi()).get<AccountDto>("/api/account")
   } catch (error) {
@@ -15,7 +16,7 @@ export async function getAccount(): Promise<AccountDto | null> {
     if (error instanceof ApiError && error.status === 404) return null
     throw error
   }
-}
+})
 
 export async function getProfiles(): Promise<ProfileDto[]> {
   try {

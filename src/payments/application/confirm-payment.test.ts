@@ -33,8 +33,21 @@ class InMemoryPayments implements PaymentRepository {
     this.payments.set(this.key(p.provider, p.providerReference), p)
   }
 
+  async saveIfAbsent(p: Payment): Promise<boolean> {
+    const k = this.key(p.provider, p.providerReference)
+    if (this.payments.has(k)) {
+      return false
+    }
+    this.payments.set(k, p)
+    return true
+  }
+
   async findByProviderReference(provider: PaymentProviderName, reference: string): Promise<Payment | null> {
     return this.payments.get(this.key(provider, reference)) ?? null
+  }
+
+  async findByOrderId(orderId: string): Promise<Payment[]> {
+    return Array.from(this.payments.values()).filter((p) => p.orderId === orderId)
   }
 
   async markStatus(provider: PaymentProviderName, reference: string, status: PaymentStatus): Promise<void> {
@@ -79,6 +92,10 @@ class InMemoryOrders implements OrderRepository {
     return []
   }
 
+  async countByClient(): Promise<number> {
+    return 0
+  }
+
   async findByDistributorOrderId(): Promise<Order | null> {
     return null
   }
@@ -91,6 +108,12 @@ class InMemoryOrders implements OrderRepository {
   async sumCoinsChargedSince(): Promise<number> {
     return 0
   }
+  async summarizeByClient(): Promise<{ totalOrders: number; totalPaidCoins: number; monthlyPaidCoins: number }> {
+    return { totalOrders: 0, totalPaidCoins: 0, monthlyPaidCoins: 0 }
+  }
+  async listFailedUnrefundedCoinOrders(): Promise<Order[]> {
+    return []
+  }
 }
 
 describe("createConfirmPayment", () => {
@@ -100,14 +123,14 @@ describe("createConfirmPayment", () => {
     const p = Object.freeze({
       id: "pay1",
       orderId: "ord1",
-      provider: "INSTAPAY" as PaymentProviderName,
+      provider: "PAYMOB" as PaymentProviderName,
       providerReference: "ref1",
       amount: money(10, "USD"),
       status: "PENDING" as PaymentStatus,
     })
     await payments.save(p)
     const confirm = createConfirmPayment({ payments, orders })
-    const res = await confirm({ provider: "INSTAPAY", reference: "ref1", status: "PAID" })
+    const res = await confirm({ provider: "PAYMOB", reference: "ref1", status: "PAID" })
     expect(res).toBeNull()
     expect(payments.markStatusCalls.length).toBe(1)
   })
@@ -118,20 +141,20 @@ describe("createConfirmPayment", () => {
     const p = Object.freeze({
       id: "pay1",
       orderId: "ord1",
-      provider: "INSTAPAY" as PaymentProviderName,
+      provider: "PAYMOB" as PaymentProviderName,
       providerReference: "ref1",
       amount: money(10, "USD"),
       status: "PENDING" as PaymentStatus,
     })
     await payments.save(p)
-    let o = order({ id: "ord1", token: "t1", client: makeClient(), product: makeProduct(), player: makePlayer(), price: money(10, "USD") ,
+    let o = order({ id: "ord1", token: "t1", profileId: "p1", client: makeClient(), product: makeProduct(), player: makePlayer(), price: money(10, "USD") ,
     markupBasisPoints: 0,
   })
     const { apply } = await import('@/ordering')
     o = apply(o, "REQUEST_PAYMENT")
     await orders.save(o)
     const confirm = createConfirmPayment({ payments, orders })
-    const res = await confirm({ provider: "INSTAPAY", reference: "ref1", status: "PAID" })
+    const res = await confirm({ provider: "PAYMOB", reference: "ref1", status: "PAID" })
     expect(res?.status).toBe("PAID")
     expect(res?.paymentReference).toBe("ref1")
     expect(orders.updateCalls.length).toBe(1)
@@ -141,7 +164,7 @@ describe("createConfirmPayment", () => {
     const payments = new InMemoryPayments()
     const orders = new InMemoryOrders()
     const confirm = createConfirmPayment({ payments, orders })
-    const res = await confirm({ provider: "INSTAPAY", reference: "missing", status: "PAID" })
+    const res = await confirm({ provider: "PAYMOB", reference: "missing", status: "PAID" })
     expect(res).toBeNull()
     expect(payments.markStatusCalls.length).toBe(0)
     expect(orders.updateCalls.length).toBe(0)
@@ -153,14 +176,14 @@ describe("createConfirmPayment", () => {
     const p = Object.freeze({
       id: "pay1",
       orderId: "ord1",
-      provider: "INSTAPAY" as PaymentProviderName,
+      provider: "PAYMOB" as PaymentProviderName,
       providerReference: "ref1",
       amount: money(10, "USD"),
       status: "PAID" as PaymentStatus,
     })
     await payments.save(p)
     const confirm = createConfirmPayment({ payments, orders })
-    const res = await confirm({ provider: "INSTAPAY", reference: "ref1", status: "PAID" })
+    const res = await confirm({ provider: "PAYMOB", reference: "ref1", status: "PAID" })
     expect(res).toBeNull()
     expect(payments.markStatusCalls.length).toBe(0)
     expect(orders.updateCalls.length).toBe(0)
@@ -172,13 +195,13 @@ describe("createConfirmPayment", () => {
     const p = Object.freeze({
       id: "pay1",
       orderId: "ord1",
-      provider: "INSTAPAY" as PaymentProviderName,
+      provider: "PAYMOB" as PaymentProviderName,
       providerReference: "ref1",
       amount: money(10, "USD"),
       status: "PENDING" as PaymentStatus,
     })
     await payments.save(p)
-    let o = order({ id: "ord1", token: "t1", client: makeClient(), product: makeProduct(), player: makePlayer(), price: money(10, "USD") ,
+    let o = order({ id: "ord1", token: "t1", profileId: "p1", client: makeClient(), product: makeProduct(), player: makePlayer(), price: money(10, "USD") ,
     markupBasisPoints: 0,
   })
     const { apply } = await import('@/ordering')
@@ -186,7 +209,7 @@ describe("createConfirmPayment", () => {
     o = apply(o, "PAYMENT_CONFIRMED")
     await orders.save(o)
     const confirm = createConfirmPayment({ payments, orders })
-    const res = await confirm({ provider: "INSTAPAY", reference: "ref1", status: "PAID" })
+    const res = await confirm({ provider: "PAYMOB", reference: "ref1", status: "PAID" })
     expect(res?.id).toBe("ord1")
     expect(res?.status).toBe("PAID")
     expect(orders.updateCalls.length).toBe(0)
@@ -198,20 +221,20 @@ describe("createConfirmPayment", () => {
     const p = Object.freeze({
       id: "pay1",
       orderId: "ord1",
-      provider: "INSTAPAY" as PaymentProviderName,
+      provider: "PAYMOB" as PaymentProviderName,
       providerReference: "ref1",
       amount: money(10, "USD"),
       status: "PENDING" as PaymentStatus,
     })
     await payments.save(p)
-    let o = order({ id: "ord1", token: "t1", client: makeClient(), product: makeProduct(), player: makePlayer(), price: money(10, "USD") ,
+    let o = order({ id: "ord1", token: "t1", profileId: "p1", client: makeClient(), product: makeProduct(), player: makePlayer(), price: money(10, "USD") ,
     markupBasisPoints: 0,
   })
     const { apply } = await import('@/ordering')
     o = apply(o, "REQUEST_PAYMENT")
     await orders.save(o)
     const confirm = createConfirmPayment({ payments, orders })
-    const res = await confirm({ provider: "INSTAPAY", reference: "ref1", status: "FAILED" })
+    const res = await confirm({ provider: "PAYMOB", reference: "ref1", status: "FAILED" })
     expect(res).toBeNull()
     expect(payments.markStatusCalls.length).toBe(1)
     expect(orders.updateCalls.length).toBe(0)
@@ -223,14 +246,14 @@ describe("createConfirmPayment", () => {
     const p = Object.freeze({
       id: "pay1",
       orderId: "ord1",
-      provider: "INSTAPAY" as PaymentProviderName,
+      provider: "PAYMOB" as PaymentProviderName,
       providerReference: "ref1",
       amount: money(10, "USD"),
       status: "PENDING" as PaymentStatus,
     })
     await payments.save(p)
     const confirm = createConfirmPayment({ payments, orders })
-    const res = await confirm({ provider: "INSTAPAY", reference: "ref1", status: "PAID" })
+    const res = await confirm({ provider: "PAYMOB", reference: "ref1", status: "PAID" })
     expect(res).toBeNull()
     expect(payments.markStatusCalls.length).toBe(1)
     expect(orders.updateCalls.length).toBe(0)

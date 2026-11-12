@@ -8,6 +8,7 @@ import { Icon } from "@/app/icons"
 import { getLocale } from "@/i18n/server"
 import { t } from "@/i18n/dictionary"
 import { SubmitButton } from "@/app/submit-button"
+import { brand } from "@/shared/brand"
 
 export const dynamic = "force-dynamic"
 
@@ -29,7 +30,7 @@ export default async function RegisterPage({
               <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-ember/30 bg-ember/10 text-ember">
                 <Icon name="flame" size={18} />
               </span>
-              <span className="font-display text-base font-extrabold"><span className="text-ember">67</span> Store</span>
+              <span className="font-display text-base font-extrabold"><span className="text-ember">{brand.short}</span> {brand.suffix}</span>
             </div>
 
             <p className="eyebrow mt-6"><Icon name="sparkles" size={12} />{t(locale, "account.registerTitle")}</p>
@@ -37,7 +38,13 @@ export default async function RegisterPage({
 
             {error ? (
               <div className="alert mt-4">
-                {error === "password" ? t(locale, "account.passwordTooShort") : t(locale, "account.registerFailed")}
+                {error === "password"
+                  ? t(locale, "account.passwordTooShort")
+                  : error === "invalid_username"
+                    ? t(locale, "account.invalidUsername")
+                    : error === "username_taken"
+                      ? t(locale, "account.usernameTaken")
+                      : t(locale, "account.registerFailed")}
               </div>
             ) : null}
 
@@ -45,6 +52,20 @@ export default async function RegisterPage({
               <input type="hidden" name="next" value={next ?? ""} />
               <input type="hidden" name="playerUserId" value={playerUserId ?? ""} />
               <input type="hidden" name="playerServerId" value={playerServerId ?? ""} />
+              <div className="field">
+                <label htmlFor="username">{t(locale, "account.username")}</label>
+                <input
+                  id="username"
+                  type="text"
+                  name="username"
+                  required
+                  minLength={3}
+                  maxLength={32}
+                  pattern="[A-Za-z0-9_]+"
+                  autoComplete="username"
+                />
+                <p className="hint"><Icon name="user" size={14} /> {t(locale, "account.usernameHint")}</p>
+              </div>
               <div className="field">
                 <label htmlFor="email">{t(locale, "account.email")}</label>
                 <input id="email" type="email" name="email" required autoComplete="email" />

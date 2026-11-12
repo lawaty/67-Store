@@ -63,6 +63,21 @@ describe("g2bulk client", () => {
     expect(res).toEqual({ distributorOrderId: "12345", status: "PENDING" })
   })
 
+  it("placeOrder unwraps the real { success, message, order } envelope", async () => {
+    const fetchStub = async () => ({ ok: true, status: 200, json: async () => ({ success: true, message: "Order created", order: { order_id: 2251529, status: "PENDING" } }) })
+    const client = createG2Bulk({ baseUrl: "https://example.com", apiKey: "k", fetch: fetchStub as any })
+    const p = product({ id: "mlbb:1", distributorId: "2793", name: "Diamonds", cost: money(100, "USD"), game: "mlbb" })
+    const res = await client.placeOrder({ orderId: "ord123", game: "mlbb", product: p, player: player("1", "2") })
+    expect(res).toEqual({ distributorOrderId: "2251529", status: "PENDING" })
+  })
+
+  it("getOrder unwraps the real { success, order } envelope", async () => {
+    const fetchStub = async () => ({ ok: true, status: 200, json: async () => ({ success: true, order: { order_id: 2251529, status: "COMPLETED" } }) })
+    const client = createG2Bulk({ baseUrl: "https://example.com", apiKey: "k", fetch: fetchStub as any })
+    const res = await client.getOrder({ distributorOrderId: "2251529", game: "mlbb" })
+    expect(res).toEqual({ distributorOrderId: "2251529", status: "COMPLETED" })
+  })
+
   it("getOrder maps a numeric order_id in the status response", async () => {
     const calls: any[] = []
     const fetchStub = async (url: string, init: any) => {
@@ -115,7 +130,7 @@ describe("g2bulk client", () => {
     expect(err.message).toBe("Bad request")
   })
 
-  it("getBalance GETs /v1/getMe and converts the USD balance to minor units", async () => {
+  it("getBalance GETs /v1/getMe and converts the USD balance to milli-USD", async () => {
     const calls: any[] = []
     const fetchStub = async (url: string, init: any) => {
       calls.push({ url, init })
@@ -126,7 +141,7 @@ describe("g2bulk client", () => {
     expect(calls[0].url).toBe("https://example.com/v1/getMe")
     expect(calls[0].init.method).toBe("GET")
     expect(calls[0].init.headers["X-API-Key"]).toBe("key123")
-    expect(res).toEqual({ balanceMinor: 124 })
+    expect(res).toEqual({ balanceMilli: 1234 })
   })
 
   it("getBalance throws DistributorError on a non-200 response", async () => {
@@ -134,5 +149,53 @@ describe("g2bulk client", () => {
     const client = createG2Bulk({ baseUrl: "https://example.com", apiKey: "k", fetch: fetchStub as any })
     await expect(client.getBalance()).rejects.toBeInstanceOf(DistributorError)
     await expect(client.getBalance()).rejects.toMatchObject({ status: 401 })
+  })
+
+  it("placeOrder real envelope with price sets priceMinor", async () => {
+    const fetchStub = async () => ({ ok: true, status: 200, json: async () => ({ success: true, order: { order_id: 2251529, status: "PENDING", price: 1.37 } }) })
+    const client = createG2Bulk({ baseUrl: "https://example.com", apiKey: "k", fetch: fetchStub as any })
+    const p = product({ id: "mlbb:1", distributorId: "2793", name: "Diamonds", cost: money(100, "USD"), game: "mlbb" })
+    const res = await client.placeOrder({ orderId: "ord123", game: "mlbb", product: p, player: player("1", "2") })
+    expect(res.priceMinor).toBe(137)
+  })
+
+  it("placeOrder maps flat payload with string price to priceMinor", async () => {
+    const fetchStub = async () => ({ ok: true, status: 200, json: async () => ({ order_id: "do5", status: "pending", price: "0.88" }) })
+    const client = createG2Bulk({ baseUrl: "https://example.com", apiKey: "k", fetch: fetchStub as any })
+    const p = product({ id: "mlbb:1", distributorId: "2793", name: "Diamonds", cost: money(100, "USD"), game: "mlbb" })
+    const res = await client.placeOrder({ orderId: "ord123", game: "mlbb", product: p, player: player("1", "2") })
+    expect(res.priceMinor).toBe(88)
+  })
+
+  it("placeOrder payload with no price omits priceMinor", async () => {
+    const fetchStub = async () => ({ ok: true, status: 200, json: async () => ({ order_id: "do5", status: "PENDING" }) })
+    const client = createG2Bulk({ baseUrl: "https://example.com", apiKey: "k", fetch: fetchStub as any })
+    const p = product({ id: "mlbb:1", distributorId: "2793", name: "Diamonds", cost: money(100, "USD"), game: "mlbb" })
+    const res = await client.placeOrder({ orderId: "ord123", game: "mlbb", product: p, player: player("1", "2") })
+    expect("priceMinor" in res).toBe(false)
+  })
+
+  it("placeOrder payload with non-numeric price omits priceMinor", async () => {
+    const fetchStub = async () => ({ ok: true, status: 200, json: async () => ({ order_id: "do5", status: "PENDING", price: "abc" }) })
+    const client = createG2Bulk({ baseUrl: "https://example.com", apiKey: "k", fetch: fetchStub as any })
+    const p = product({ id: "mlbb:1", distributorId: "2793", name: "Diamonds", cost: money(100, "USD"), game: "mlbb" })
+    const res = await client.placeOrder({ orderId: "ord123", game: "mlbb", product: p, player: player("1", "2") })
+    expect("priceMinor" in res).toBe(false)
+  })
+
+  it("getOrder response with price sets priceMinor", async () => {
+    const fetchStub = async () => ({ ok: true, status: 200, json: async () => ({ success: true, order: { order_id: 2251529, status: "COMPLETED", price: 1.37 } }) })
+    const client = createG2Bulk({ baseUrl: "https://example.com", apiKey: "k", fetch: fetchStub as any })
+    const res = await client.getOrder({ distributorOrderId: "2251529", game: "mlbb" })
+    expect(res.priceMinor).toBe(137)
+  })
+
+  it("maps payload price 0.165 to priceUsdtMilli 165 and priceMinor 17", async () => {
+    const fetchStub = async () => ({ ok: true, status: 200, json: async () => ({ order_id: "do5", status: "PENDING", price: 0.165 }) })
+    const client = createG2Bulk({ baseUrl: "https://example.com", apiKey: "k", fetch: fetchStub as any })
+    const p = product({ id: "mlbb:1", distributorId: "2793", name: "Diamonds", cost: money(100, "USD"), game: "mlbb" })
+    const res = await client.placeOrder({ orderId: "ord123", game: "mlbb", product: p, player: player("1", "2") })
+    expect(res.priceUsdtMilli).toBe(165)
+    expect(res.priceMinor).toBe(17)
   })
 })

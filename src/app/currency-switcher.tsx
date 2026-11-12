@@ -15,9 +15,9 @@ import { isUrlMethod, type UrlMethod } from "@/app/urls"
 export function CurrencySwitcher({ locale, value }: { locale: Locale; value: UrlMethod }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
+  // Crypto rails are deferred, the route stays valid but is not offered.
   const options: ReadonlyArray<{ readonly id: UrlMethod; readonly label: string }> = [
-    { id: "instapay", label: t(locale, "common.currency") },
-    { id: "crypto", label: "USDT" },
+    { id: "paymob", label: t(locale, "common.currency") },
     { id: "coins", label: t(locale, "common.currencyCoins") },
   ]
 

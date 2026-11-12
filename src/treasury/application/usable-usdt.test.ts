@@ -1,49 +1,49 @@
 import { describe, expect, test, vi } from "vitest"
-import { readAvailableUsdtMinor } from "./usable-usdt"
+import { readAvailableUsdtMilli } from "./usable-usdt"
 
-describe("readAvailableUsdtMinor", () => {
-  test("returns recorded USDT minus outstanding in USDT minor units", async () => {
+describe("readAvailableUsdtMilli", () => {
+  test("returns recorded USDT minus outstanding in milli-USDT", async () => {
     const deps = {
-      recordedUsdt: async () => 70000,
+      recordedUsdt: async () => 700000,
       coinsOutstanding: async () => 10,
       coinValueMinor: async () => 100,
     }
-    await expect(readAvailableUsdtMinor(deps)).resolves.toBe(69000)
+    await expect(readAvailableUsdtMilli(deps)).resolves.toBe(690000)
   })
 
   test("uses recorded funds, not a live balance source", async () => {
     const deps = {
-      recordedUsdt: async () => 4000,
+      recordedUsdt: async () => 40000,
       coinsOutstanding: async () => 10,
       coinValueMinor: async () => 100,
     }
-    await expect(readAvailableUsdtMinor(deps)).resolves.toBe(3000)
+    await expect(readAvailableUsdtMilli(deps)).resolves.toBe(30000)
   })
 
   test("handles a different coin index", async () => {
     const deps = {
-      recordedUsdt: async () => 50000,
+      recordedUsdt: async () => 500000,
       coinsOutstanding: async () => 10,
       coinValueMinor: async () => 20,
     }
-    // reserved: 10 coins * 20 minor = 200
-    await expect(readAvailableUsdtMinor(deps)).resolves.toBe(49800)
+    // reserved: 10 coins * 20 minor * 10 = 2000 milli-USDT
+    await expect(readAvailableUsdtMilli(deps)).resolves.toBe(498000)
   })
 
   test("returns negative when recorded USDT is below outstanding", async () => {
     const deps = {
-      recordedUsdt: async () => 500,
+      recordedUsdt: async () => 5000,
       coinsOutstanding: async () => 10,
       coinValueMinor: async () => 100,
     }
-    await expect(readAvailableUsdtMinor(deps)).resolves.toBe(-500)
+    await expect(readAvailableUsdtMilli(deps)).resolves.toBe(-5000)
   })
 
   test("calls each dependency once", async () => {
-    const recordedUsdt = vi.fn(async () => 70000)
+    const recordedUsdt = vi.fn(async () => 700000)
     const coinsOutstanding = vi.fn(async () => 10)
     const coinValueMinor = vi.fn(async () => 100)
-    await readAvailableUsdtMinor({ recordedUsdt, coinsOutstanding, coinValueMinor })
+    await readAvailableUsdtMilli({ recordedUsdt, coinsOutstanding, coinValueMinor })
     expect(recordedUsdt).toHaveBeenCalledTimes(1)
     expect(coinsOutstanding).toHaveBeenCalledTimes(1)
     expect(coinValueMinor).toHaveBeenCalledTimes(1)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { mapCatalogue, usdToMinor } from "./catalogue-mapper"
+import { mapCatalogue, usdToMilli, usdToMinor } from "./catalogue-mapper"
 import { money } from "../../shared/money"
 
 describe("usdToMinor", () => {
@@ -15,6 +15,22 @@ describe("usdToMinor", () => {
     expect(() => usdToMinor(-1)).toThrow(RangeError)
     expect(() => usdToMinor(NaN)).toThrow(RangeError)
     expect(() => usdToMinor(Infinity)).toThrow(RangeError)
+  })
+})
+
+describe("usdToMilli", () => {
+  it("converts USD amounts to milli-USD", () => {
+    expect(usdToMilli(0.724)).toBe(724)
+    expect(usdToMilli(1.234)).toBe(1234)
+    expect(usdToMilli(1.408)).toBe(1408)
+    expect(usdToMilli(1)).toBe(1000)
+    expect(usdToMilli(0)).toBe(0)
+  })
+
+  it("throws RangeError for invalid values", () => {
+    expect(() => usdToMilli(-1)).toThrow(RangeError)
+    expect(() => usdToMilli(NaN)).toThrow(RangeError)
+    expect(() => usdToMilli(Infinity)).toThrow(RangeError)
   })
 })
 

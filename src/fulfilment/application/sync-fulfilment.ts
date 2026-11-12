@@ -7,6 +7,8 @@ import { OrderRepository } from "@/ordering"
 import { Distributor } from "../ports/distributor"
 import { FulfilmentError } from "../domain/fulfilment-error"
 import type { TreasuryService } from "@/treasury"
+import { usdtMilliFromUsdMinor } from "@/shared/usdt"
+import { applyActualCost, resolveCostToConsumeUsdtMilli } from "./cost-to-consume"
 
 export function createSyncFulfilment(deps: { orders: OrderRepository; distributor: Distributor; treasury: Pick<TreasuryService, "consumeForOrder">; refund: (order: Order) => Promise<Order> }): (order: Order) => Promise<Order> {
   return async (order: Order): Promise<Order> => {
@@ -18,11 +20,19 @@ export function createSyncFulfilment(deps: { orders: OrderRepository; distributo
     }
     const got = await deps.distributor.getOrder({ distributorOrderId: order.distributorOrderId!, game: order.product.game })
     if (got.status === "COMPLETED") {
-      const next = apply(order, "DELIVERY_SUCCEEDED")
-      await deps.orders.update(next)
-      if (order.costMinor != null) {
-        await deps.treasury.consumeForOrder({ orderId: order.id, costUsdtMinor: order.costMinor, wacEgpMinor: order.wacEgpMinor ?? 0, cogsEgpMinor: order.cogsEgpMinor ?? 0 })
+      const catalogueCostUsdtMilli = order.costMinor == null ? null : usdtMilliFromUsdMinor(order.costMinor)
+      const distributorPriceUsdtMilli = got.priceUsdtMilli ?? (got.priceMinor == null ? null : usdtMilliFromUsdMinor(got.priceMinor))
+      const costToConsume = resolveCostToConsumeUsdtMilli(distributorPriceUsdtMilli, catalogueCostUsdtMilli)
+      let actual = order
+      if (costToConsume != null) {
+        const consumption = await deps.treasury.consumeForOrder({
+          orderId: order.id,
+          costUsdtMilli: costToConsume,
+        })
+        actual = applyActualCost(order, costToConsume, consumption.basisEgpMinor)
       }
+      const next = apply(actual, "DELIVERY_SUCCEEDED")
+      await deps.orders.update(next)
       return next
     }
     if (got.status === "FAILED") {

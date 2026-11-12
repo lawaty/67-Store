@@ -2,6 +2,7 @@
 import React from "react"
 import { cleanup, render } from "@testing-library/react"
 import { afterEach, describe, expect, it } from "vitest"
+import { formatUsdtMilli } from "@/frontend/format"
 import PartitionBar from "./partition-bar"
 import BridgeBar from "./bridge-bar"
 import MoveBar from "./move-bar"
@@ -211,6 +212,25 @@ describe("PartitionBar", () => {
     expect(container.textContent).toContain("محجوز")
     expect(container.textContent).toContain("حر")
   })
+  it("formats treasury USDT milli values with format prop at 3 dp", () => {
+    const { container } = render(
+      <PartitionBar
+        total={{ label: "المسجل", minor: 100000 }}
+        parts={[
+          { label: "محجوز", minor: 40000, tone: "sky" },
+          { label: "متاح", minor: 60000, tone: "jade" },
+        ]}
+        format={formatUsdtMilli}
+      />,
+    )
+    expect(container.textContent).toContain("100.000")
+    expect(container.textContent).toContain("40.000")
+    expect(container.textContent).toContain("60.000")
+    expect(container.textContent).not.toContain("1,000.00")
+    const img = container.querySelector('[role="img"]')!
+    expect(img.getAttribute("aria-label")).toContain("100.000")
+  })
+
 })
 
 describe("BridgeBar", () => {
@@ -292,6 +312,24 @@ describe("BridgeBar", () => {
     expect(chip.textContent).toContain("عجز")
     expect(chip.textContent).toContain("200.00")
   })
+  it("formats treasury USDT milli values with format prop at 3 dp", () => {
+    const { container } = render(
+      <BridgeBar
+        total={{ label: "live", minor: 100000 }}
+        parts={[
+          { label: "المسجّل", minor: 60000, tone: "jade" },
+          { label: "حر", minor: 40000, tone: "ember" },
+        ]}
+        format={formatUsdtMilli}
+      />,
+    )
+    expect(container.textContent).toContain("100.000")
+    expect(container.textContent).toContain("60.000")
+    expect(container.textContent).toContain("40.000")
+    expect(container.textContent).not.toContain("1,000.00")
+    expect(container.querySelector('[role="img"]')!.getAttribute("aria-label")).toContain("100.000")
+  })
+
 })
 
 describe("MoveBar", () => {

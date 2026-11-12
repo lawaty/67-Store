@@ -11,14 +11,12 @@ const options = [
 ]
 
 const disabledOptions = [
-  { id: "instapay", label: "Instapay", href: "/i", price: "10 EGP", disabled: true },
-  { id: "crypto", label: "Crypto", href: "/c", price: "1 USDT", disabled: true },
+  { id: "paymob", label: "Paymob", href: "/i", price: "10 EGP", disabled: true },
   { id: "coins", label: "Coins", href: "/k", price: "5", coinAmount: 5 },
 ]
 
 const allDisabledOptions = [
-  { id: "instapay", label: "Instapay", href: "/i", price: "10 EGP", disabled: true },
-  { id: "crypto", label: "Crypto", href: "/c", price: "1 USDT", disabled: true },
+  { id: "paymob", label: "Paymob", href: "/i", price: "10 EGP", disabled: true },
 ]
 
 const originalShowPicker = (HTMLSelectElement.prototype as { showPicker?: () => void }).showPicker
@@ -30,6 +28,32 @@ afterEach(() => {
   } else {
     (HTMLSelectElement.prototype as { showPicker?: () => void }).showPicker = originalShowPicker
   }
+})
+
+describe("offered options follow gateway flags", () => {
+  it("omits coins when coins are disabled", () => {
+    const gateways = { card: true, wallet: true, crypto: false, coins: false }
+    const methods = [
+      ...(gateways.card || gateways.wallet ? [{ id: "paymob", label: "Paymob", href: "/i", price: "10 EGP" }] : []),
+      ...(gateways.coins ? [{ id: "coins", label: "Coins", href: "/k", price: "5", coinAmount: 5 }] : []),
+      ...(gateways.crypto ? [{ id: "crypto", label: "Crypto", href: "/c", price: "1 USDT" }] : []),
+    ]
+    render(<ProductMethods options={methods} label="Method" ctaLabel="Buy" />)
+    expect(screen.queryByRole("option", { name: "Coins" })).toBeNull()
+    expect(screen.getByRole("option", { name: "Paymob" })).toBeTruthy()
+  })
+
+  it("omits paymob when card and wallet are disabled", () => {
+    const gateways = { card: false, wallet: false, crypto: false, coins: true }
+    const methods = [
+      ...(gateways.card || gateways.wallet ? [{ id: "paymob", label: "Paymob", href: "/i", price: "10 EGP" }] : []),
+      ...(gateways.coins ? [{ id: "coins", label: "Coins", href: "/k", price: "5", coinAmount: 5 }] : []),
+      ...(gateways.crypto ? [{ id: "crypto", label: "Crypto", href: "/c", price: "1 USDT" }] : []),
+    ]
+    render(<ProductMethods options={methods} label="Method" ctaLabel="Buy" />)
+    expect(screen.queryByRole("option", { name: "Paymob" })).toBeNull()
+    expect(screen.getByRole("option", { name: "Coins" })).toBeTruthy()
+  })
 })
 
 describe("ProductMethods", () => {
@@ -112,8 +136,7 @@ describe("ProductMethods", () => {
       />,
     )
 
-    expect((screen.getByRole("option", { name: "Instapay" }) as HTMLOptionElement).disabled).toBe(true)
-    expect((screen.getByRole("option", { name: "Crypto" }) as HTMLOptionElement).disabled).toBe(true)
+    expect((screen.getByRole("option", { name: "Paymob" }) as HTMLOptionElement).disabled).toBe(true)
     expect((screen.getByRole("option", { name: "Coins" }) as HTMLOptionElement).disabled).toBe(false)
   })
 
@@ -135,12 +158,12 @@ describe("ProductMethods", () => {
         options={disabledOptions}
         label="Method"
         ctaLabel="Buy"
-        defaultId="instapay"
+        defaultId="paymob"
       />,
     )
 
     const combobox = screen.getByRole("combobox") as HTMLSelectElement
-    expect(combobox.value).toBe("instapay")
+    expect(combobox.value).toBe("paymob")
     expect(screen.getByText(/10 EGP/)).toBeTruthy()
     expect(screen.queryByRole("link")).toBeNull()
     expect((screen.getByRole("button", { name: "Buy" }) as HTMLButtonElement).disabled).toBe(true)
@@ -164,8 +187,8 @@ describe("ProductMethods", () => {
       <ProductMethods
         options={[
           {
-            id: "instapay",
-            label: "Instapay",
+            id: "paymob",
+            label: "Paymob",
             href: "/i",
             price: "10 EGP",
             disabled: true,
@@ -176,20 +199,20 @@ describe("ProductMethods", () => {
         ]}
         label="Method"
         ctaLabel="Buy"
-        defaultId="instapay"
+        defaultId="paymob"
       />,
     )
 
     const combobox = screen.getByRole("combobox") as HTMLSelectElement
-    expect(combobox.value).toBe("instapay")
-    expect((screen.getByRole("option", { name: "Instapay" }) as HTMLOptionElement).disabled).toBe(true)
+    expect(combobox.value).toBe("paymob")
+    expect((screen.getByRole("option", { name: "Paymob" }) as HTMLOptionElement).disabled).toBe(true)
 
     fireEvent.change(combobox, { target: { value: "coins" } })
     expect(combobox.value).toBe("coins")
     expect(screen.getByRole("link", { name: "Buy" }).getAttribute("href")).toBe("/k")
 
-    fireEvent.change(combobox, { target: { value: "instapay" } })
-    expect(combobox.value).toBe("instapay")
+    fireEvent.change(combobox, { target: { value: "paymob" } })
+    expect(combobox.value).toBe("paymob")
     expect(screen.queryByRole("link", { name: "Buy" })).toBeNull()
     expect((screen.getByRole("button", { name: "Buy" }) as HTMLButtonElement).disabled).toBe(true)
     expect(screen.getByText(/مش متوفر/)).toBeTruthy()

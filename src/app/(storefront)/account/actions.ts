@@ -32,6 +32,7 @@ export async function signIn(formData: FormData): Promise<void> {
 export async function register(formData: FormData): Promise<void> {
   const email = String(formData.get("email") ?? "")
   const password = String(formData.get("password") ?? "")
+  const username = String(formData.get("username") ?? "")
   const next = String(formData.get("next") ?? "")
   const playerUserId = String(formData.get("playerUserId") ?? "")
   const playerServerId = String(formData.get("playerServerId") ?? "")
@@ -42,6 +43,7 @@ export async function register(formData: FormData): Promise<void> {
     result = await (await serverApi()).post<AuthResultDto>("/api/auth/register", {
       email,
       password,
+      username,
       playerUserId,
       playerServerId,
       locale,
@@ -49,6 +51,8 @@ export async function register(formData: FormData): Promise<void> {
   } catch (error) {
     if (error instanceof ApiError) {
       if (error.code === "password") redirect("/account/register?error=password")
+      if (error.code === "invalid_username") redirect("/account/register?error=invalid_username")
+      if (error.code === "username_taken") redirect("/account/register?error=username_taken")
       redirect("/account/register?error=1")
     }
     throw error

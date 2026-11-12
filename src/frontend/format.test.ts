@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest"
-import { formatBps, formatIndex, formatMinor, formatSignedBps } from "./format"
+import {
+  displayCurrency,
+  formatBps,
+  formatIndex,
+  formatMinor,
+  formatSignedBps,
+  formatUsdtMilli,
+} from "./format"
 
 describe("formatMinor", () => {
   it("formats USD with 2 decimals and grouping", () => {
@@ -27,6 +34,11 @@ describe("formatMinor", () => {
     expect(formatMinor(-123456, "USD")).toBe("-1,234.56")
     expect(formatMinor(-1234567, "JOD")).toBe("-1,234.567")
   })
+})
+
+it("maps USD to USDT and leaves other currencies", () => {
+  expect(displayCurrency("USD")).toBe("USDT")
+  expect(displayCurrency("EGP")).toBe("EGP")
 })
 
 describe("formatBps", () => {
@@ -71,5 +83,18 @@ describe("formatIndex", () => {
 
   it("honours custom digits", () => {
     expect(formatIndex(1.2345, 2)).toBe("1.23")
+  })
+})
+
+describe("formatUsdtMilli", () => {
+  it("formats milli-USDT treasury quantities at 3 decimals by default", () => {
+    expect(formatUsdtMilli(1234)).toBe("1.234")
+    expect(formatUsdtMilli(1000)).toBe("1.000")
+    expect(formatUsdtMilli(999)).toBe("0.999")
+    expect(formatUsdtMilli(0)).toBe("0.000")
+  })
+
+  it("preserves negative values", () => {
+    expect(formatUsdtMilli(-1234)).toBe("-1.234")
   })
 })

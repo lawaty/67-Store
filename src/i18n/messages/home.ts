@@ -1,6 +1,7 @@
 /**
  * Copy for the home/catalog screen, exported as matching `ar` and `en` records with the same key set.
  */
+import { brand } from "@/shared/brand"
 export const ar = {
   "home.title": "موبايل ليجندز: بانج بانج",
   "home.lede": "اختار الكمية، والتسليم هيوصلك فورًا للحساب اللي تحددّه.",
@@ -10,7 +11,7 @@ export const ar = {
   "home.packs": "الباقات",
   "home.deliveryDiamond": "بيتسلّم فورًا لحساب موبايل ليجندز اللي تحددّه.",
   "home.deliveryPack": "باقة محدودة بتتسلّم فورًا للحساب اللي تحددّه.",
-  "home.methodInstapay": "إنستاباي",
+  "home.methodInstapay": "بيموب",
   "home.methodCrypto": "كريبتو",
   "home.methodCoins": "عملات",
   "home.paymentMethod": "طريقة الدفع",
@@ -33,11 +34,11 @@ export const ar = {
   "home.steps.2.title": "دخّل بيانات اللاعب",
   "home.steps.2.body": "المعرّف والمنطقة، وبنتأكد منهم فورًا.",
   "home.steps.3.title": "ادفع واستلم",
-  "home.steps.3.body": "اختار إنستاباي أو كريبتو أو عملات ٦٧.",
+  "home.steps.3.body": `اختار بيموب أو كريبتو أو ${brand.coinAr}.`,
   "home.popular": "الأكثر طلبًا",
   "home.bestValue": "أحسن قيمة",
   "home.perDiamond": "لكل ألماسة",
-  "home.trust": "ليه ٦٧ ستور؟",
+  "home.trust": `ليه ${brand.nameAr}؟`,
   "home.viewAll": "شوف كل المنتجات",
   "home.catalogueTitle": "كل المنتجات",
   "home.catalogueLede": "كل كميات الألماس والباقات في حتة واحدة.",
@@ -56,7 +57,7 @@ export const en: Record<keyof typeof ar, string> = {
   "home.packs": "Packs",
   "home.deliveryDiamond": "Delivered instantly to the Mobile Legends account you specify.",
   "home.deliveryPack": "Limited pack delivered instantly to the account you specify.",
-  "home.methodInstapay": "Instapay",
+  "home.methodInstapay": "Paymob",
   "home.methodCrypto": "Crypto",
   "home.methodCoins": "Coins",
   "home.paymentMethod": "Payment method",
@@ -79,11 +80,11 @@ export const en: Record<keyof typeof ar, string> = {
   "home.steps.2.title": "Enter player details",
   "home.steps.2.body": "Player ID and zone — verified instantly.",
   "home.steps.3.title": "Pay & receive",
-  "home.steps.3.body": "Pay with Instapay, crypto, or 67 Coins.",
+  "home.steps.3.body": `Pay with Paymob, crypto, or ${brand.coin}.`,
   "home.popular": "Most popular",
   "home.bestValue": "Best value",
   "home.perDiamond": "per diamond",
-  "home.trust": "Why 67 Store?",
+  "home.trust": `Why ${brand.name}?`,
   "home.viewAll": "View all products",
   "home.catalogueTitle": "All products",
   "home.catalogueLede": "Every diamond amount and bundle in one place.",

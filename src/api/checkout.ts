@@ -9,7 +9,9 @@ import { productAvailability } from "@/catalogue"
 import { apply, attachPayment, markup, player, readQualifyingVolume, resolveClientMarkup } from "@/ordering"
 import { normalizeCode } from "@/promos"
 import { payment, type PaymentProviderName } from "@/payments"
-import { coinsForUsdMinor, readAvailableUsdtMinor, readCoinValueMinor } from "@/treasury"
+import { coinsForUsdMinor, readAvailableUsdtMilli, readCoinValueMinor } from "@/treasury"
+import { POLICY_VERSION } from "@/shared/legal"
+import { usdMinorFloorFromUsdtMilli } from "@/shared/usdt"
 
 import type { CheckoutError, CheckoutResultDto } from "./contracts"
 
@@ -24,11 +26,11 @@ export type CheckoutInput = {
   readonly productId: string
   readonly method: CheckoutMethod
   readonly profileId: string
-  readonly label: string
   readonly userId: string
   readonly serverId: string
   readonly promoCode: string
   readonly locale: string
+  readonly termsAccepted: boolean
 }
 
 export type CheckoutDeps = {
@@ -43,6 +45,9 @@ export async function checkout(
   input: CheckoutInput,
   deps: CheckoutDeps,
 ): Promise<CheckoutResultDto> {
+  if (input.termsAccepted !== true) {
+    return { ok: false, error: "terms" }
+  }
   const session =
     viewer.accountId !== null && viewer.clientId !== null
       ? { accountId: viewer.accountId, clientId: viewer.clientId }
@@ -50,6 +55,7 @@ export async function checkout(
 
   let userId = input.userId
   let serverId = input.serverId
+  let matchedProfileId: string | null = null
 
   if (input.profileId !== "" && session !== null) {
     const profiles = await c.gamingProfiles.listByAccount(session.accountId)
@@ -57,6 +63,7 @@ export async function checkout(
     if (match !== undefined) {
       userId = match.userId
       serverId = match.serverId
+      matchedProfileId = match.id
     }
   }
 
@@ -64,21 +71,33 @@ export async function checkout(
   const found = products.find((product) => product.id === input.productId)
   if (found === undefined) return { ok: false, error: "product" }
 
-  const mode = await c.operationsMode()
-
-  if (input.method !== "coins" && mode === "live") {
-    let availableUsdtMinor: number | null = null
+  if (input.method !== "coins") {
+    let availableUsdMinor: number | null = null
     try {
-      availableUsdtMinor = await readAvailableUsdtMinor({
-        recordedUsdt: async () => (await c.treasury.snapshot()).usdtMinor,
+      const availableUsdtMilli = await readAvailableUsdtMilli({
+        recordedUsdt: async () => (await c.treasury.snapshot()).usdtMilli,
         coinsOutstanding: () => c.coinSupply.totalCoins(),
         coinValueMinor: () => readCoinValueMinor(c.settings),
       })
+      availableUsdMinor = usdMinorFloorFromUsdtMilli(availableUsdtMilli)
     } catch {
-      availableUsdtMinor = null
+      availableUsdMinor = null
     }
-    const availability = productAvailability({ active: true, costMinor: found.cost.minor, availableUsdtMinor })
+    const availability = productAvailability({ active: true, costMinor: found.cost.minor, availableUsdtMinor: availableUsdMinor })
     if (!availability.buyable) return { ok: false, error: "unavailable" }
+  }
+
+  const gateways = await c.gatewaySettings()
+  if (input.method === "coins" && !gateways.coins) {
+    return { ok: false, error: "payment" }
+  }
+  if (input.method === "usdt" && !gateways.crypto) {
+    return { ok: false, error: "payment" }
+  }
+
+  const provider: PaymentProviderName = input.method === "usdt" ? "CRYPTO" : "PAYMOB"
+  if (input.method !== "coins" && !(await c.paymentProviderAvailable(provider))) {
+    return { ok: false, error: "payment" }
   }
 
   if (userId.trim() === "" || serverId.trim() === "") return { ok: false, error: "player" }
@@ -92,22 +111,6 @@ export async function checkout(
 
   const check = await c.distributor.checkPlayer({ game: "mlbb", player: target })
   if (!check.valid) return { ok: false, error: "player" }
-
-  if (session !== null && input.profileId === "") {
-    try {
-      await c.gamingProfiles.add({
-        id: deps.newId(),
-        accountId: session.accountId,
-        label: input.label.trim() === "" ? (input.locale === "en" ? "My profile" : "بروفايلي") : input.label,
-        game: "mlbb",
-        userId: target.userId,
-        serverId: target.serverId,
-        playerName: check.name,
-      })
-    } catch {
-      // Saving a convenience profile must not block checkout.
-    }
-  }
 
   const nowDate = (deps.now ?? (() => new Date()))()
   const now = nowDate.toISOString()
@@ -135,6 +138,20 @@ export async function checkout(
       coinsConsumed: 0,
     })
   }
+
+  const profileId =
+    matchedProfileId ??
+    (
+      await c.gamingProfiles.add({
+        id: deps.newId(),
+        clientId: buyer.id,
+        accountId: session === null ? null : session.accountId,
+        game: "mlbb",
+        userId: target.userId,
+        serverId: target.serverId,
+        playerName: check.name,
+      })
+    ).id
 
   const buyerMarkup = markup(resolvedMarkup)
 
@@ -170,6 +187,9 @@ export async function checkout(
     coinValueMinor,
     promoCode: promoCodeRaw === "" ? null : promoCodeRaw,
     playerName: check.name,
+    profileId,
+    termsVersion: POLICY_VERSION,
+    termsAcceptedAt: (deps.now?.() ?? new Date()).toISOString(),
   })
 
   if (placed.promoError !== null) {
@@ -214,12 +234,10 @@ export async function checkout(
     return { ok: true, redirectUrl: `/order/${awaiting.token}` }
   }
 
-  const provider: PaymentProviderName = input.method === "usdt" ? "CRYPTO" : "INSTAPAY"
-  const started = await c.startPayment({
-    order: awaiting,
-    provider,
-    returnUrl: `/order/${awaiting.token}`,
-  })
-
-  return { ok: true, redirectUrl: started.redirectUrl }
+  try {
+    const started = await c.startPayment({ order: awaiting, provider, returnUrl: `/order/${awaiting.token}` })
+    return { ok: true, redirectUrl: started.redirectUrl }
+  } catch {
+    return { ok: false, error: "payment", redirectUrl: `/order/${awaiting.token}` }
+  }
 }

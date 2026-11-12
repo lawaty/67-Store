@@ -206,7 +206,6 @@ describe("DashboardTrend", () => {
     )
     expect(container.textContent).toContain("a@example.com")
     expect(container.textContent).toContain("عميل ضيف")
-    expect(container.textContent).toContain("client-1")
     expect(container.textContent).toContain("12.00%")
     expect(container.textContent).toContain("7.00")
   })

@@ -42,6 +42,9 @@ class InMemoryOrderRepository implements OrderRepository {
   async listByClient(): Promise<Order[]> {
     return []
   }
+  async countByClient(): Promise<number> {
+    return 0
+  }
   async findByDistributorOrderId(): Promise<Order | null> {
     return null
   }
@@ -53,6 +56,30 @@ class InMemoryOrderRepository implements OrderRepository {
   }
   async sumCoinsChargedSince(): Promise<number> {
     return 0
+  }
+  async listFailedUnrefundedCoinOrders(): Promise<Order[]> {
+    return []
+  }
+  async summarizeByClient(
+    clientId: string,
+    monthStart: string,
+  ): Promise<{ totalOrders: number; totalPaidCoins: number; monthlyPaidCoins: number }> {
+    const paidStatuses = new Set(["PAID", "FULFILLING", "DELIVERED"])
+    let totalOrders = 0
+    let totalPaidCoins = 0
+    let monthlyPaidCoins = 0
+    for (const o of this.saved) {
+      if (o.client.id !== clientId) continue
+      totalOrders++
+      if (paidStatuses.has(o.status)) {
+        const coins = o.coinsCharged ?? 0
+        totalPaidCoins += coins
+        if (o.createdAt !== undefined && o.createdAt !== null && o.createdAt >= monthStart) {
+          monthlyPaidCoins += coins
+        }
+      }
+    }
+    return { totalOrders, totalPaidCoins, monthlyPaidCoins }
   }
 }
 
@@ -81,7 +108,7 @@ describe("place-order", () => {
     const c = client("c1")
     const p = product({ id: "p1", distributorId: "d1", name: "Topup", cost: money(10000, "USD"), game: "mlbb" })
     const pl = player("u1", "s1")
-    const result = (await placeOrder({ client: c, product: p, player: pl, markup: markup(2000), coinValueMinor: 100, promoCode: null })).order
+    const result = (await placeOrder({ client: c, product: p, player: pl, markup: markup(2000), coinValueMinor: 100, promoCode: null, profileId: "prof1" })).order
     expect(repo.saved.length).toBe(1)
     expect(result).toBe(repo.saved[0])
   })
@@ -92,13 +119,13 @@ describe("place-order", () => {
     const c = client("c1")
     const p = product({ id: "p1", distributorId: "d1", name: "Topup", cost: money(10000, "USD"), game: "mlbb" })
     const pl = player("u1", "s1")
-    const result = (await placeOrder({ client: c, product: p, player: pl, markup: markup(2000), coinValueMinor: 100, promoCode: null })).order
-    expect(result.status).toBe("CREATED")
+    const result = (await placeOrder({ client: c, product: p, player: pl, markup: markup(2000), coinValueMinor: 100, promoCode: null, profileId: "prof1" })).order
     expect(result.id).toBe("o2")
     expect(result.token).toBe("tok2")
+    expect(result.status).toBe("CREATED")
     expect(result.price.minor).toBe(12000)
     expect(result.price.currency).toBe("USD")
-    expect(result.coinValueMinor).toBe(100)
+    expect(result.costUsdtMilli).toBeNull()
   })
 
 
@@ -109,7 +136,7 @@ describe("place-order", () => {
     const c = client("c1")
     const p = product({ id: "p1", distributorId: "d1", name: "Topup", cost: money(10000, "USD"), game: "mlbb" })
     const pl = player("u1", "s1")
-    const result = (await placeOrder({ client: c, product: p, player: pl, markup: markup(2000), coinValueMinor: 100, promoCode: null })).order
+    const result = (await placeOrder({ client: c, product: p, player: pl, markup: markup(2000), coinValueMinor: 100, promoCode: null, profileId: "prof1" })).order
     expect(result.client).toBe(c)
     expect(result.product).toBe(p)
     expect(result.player).toBe(pl)
@@ -136,7 +163,7 @@ describe("place-order", () => {
     const c = client("c1")
     const p = product({ id: "p1", distributorId: "d1", name: "Topup", cost: money(10000, "USD"), game: "mlbb" })
     const pl = player("u1", "s1")
-    await placeOrder({ client: c, product: p, player: pl, markup: markup(2000), coinValueMinor: 100, promoCode: null })
+    await placeOrder({ client: c, product: p, player: pl, markup: markup(2000), coinValueMinor: 100, promoCode: null, profileId: "prof1" })
     expect(idCalls).toBe(1)
     expect(tokenCalls).toBe(1)
   })
@@ -147,7 +174,7 @@ describe("place-order", () => {
     const c = client("c1")
     const p = product({ id: "p1", distributorId: "d1", name: "Topup", cost: money(10000, "USD"), game: "mlbb" })
     const pl = player("u1", "s1")
-    const result = (await placeOrder({ client: c, product: p, player: pl, markup: markup(2000), coinValueMinor: 100, promoCode: null })).order
+    const result = (await placeOrder({ client: c, product: p, player: pl, markup: markup(2000), coinValueMinor: 100, promoCode: null, profileId: "prof1" })).order
     expect(repo.saved[0]).toBe(result)
   })
 
@@ -160,7 +187,7 @@ describe("place-order", () => {
     const c = client("c1")
     const p = product({ id: "p1", distributorId: "d1", name: "Topup", cost: money(10000, "USD"), game: "mlbb" })
     const pl = player("u1", "s1")
-    await expect(placeOrder({ client: c, product: p, player: pl, markup: markup(2000), coinValueMinor: 100, promoCode: null })).rejects.toThrow("fail")
+    await expect(placeOrder({ client: c, product: p, player: pl, markup: markup(2000), coinValueMinor: 100, promoCode: null, profileId: "prof1" })).rejects.toThrow("fail")
     expect(repo.saved.length).toBe(0)
   })
 })
@@ -178,7 +205,7 @@ describe("place-order promo codes", () => {
     const c = client("c1")
     const p = product({ id: "p1", distributorId: "d1", name: "Topup", cost: money(10000, "USD"), game: "mlbb" })
     const pl = player("u1", "s1")
-    const res = await placeOrder({ client: c, product: p, player: pl, markup: markup(2000), coinValueMinor: 100, promoCode: "P10" })
+    const res = await placeOrder({ client: c, product: p, player: pl, markup: markup(2000), coinValueMinor: 100, promoCode: "P10", profileId: "prof1" })
     expect(res.promoError).toBeNull()
     expect(res.order.price.minor).toBe(10800)
     expect(res.order.discountMinor).toBe(1200)
@@ -194,7 +221,7 @@ describe("place-order promo codes", () => {
     const c = client("c1")
     const p = product({ id: "p1", distributorId: "d1", name: "Topup", cost: money(10000, "USD"), game: "mlbb" })
     const pl = player("u1", "s1")
-    const res = await placeOrder({ client: c, product: p, player: pl, markup: markup(2000), coinValueMinor: 100, promoCode: "F5" })
+    const res = await placeOrder({ client: c, product: p, player: pl, markup: markup(2000), coinValueMinor: 100, promoCode: "F5", profileId: "prof1" })
     expect(res.promoError).toBeNull()
     expect(res.order.price.minor).toBe(11500)
     expect(res.order.discountMinor).toBe(500)
@@ -208,7 +235,7 @@ describe("place-order promo codes", () => {
     const c = client("c1")
     const p = product({ id: "p1", distributorId: "d1", name: "Topup", cost: money(10000, "USD"), game: "mlbb" })
     const pl = player("u1", "s1")
-    const res = await placeOrder({ client: c, product: p, player: pl, markup: markup(2000), coinValueMinor: 100, promoCode: "BIG" })
+    const res = await placeOrder({ client: c, product: p, player: pl, markup: markup(2000), coinValueMinor: 100, promoCode: "BIG", profileId: "prof1" })
     expect(res.promoError).toBeNull()
     expect(res.order.price.minor).toBe(10000)
     expect(res.order.discountMinor).toBe(2000)
@@ -222,7 +249,7 @@ describe("place-order promo codes", () => {
     const c = client("c1")
     const p = product({ id: "p1", distributorId: "d1", name: "Topup", cost: money(10000, "USD"), game: "mlbb" })
     const pl = player("u1", "s1")
-    await placeOrder({ client: c, product: p, player: pl, markup: markup(2000), coinValueMinor: 100, promoCode: "USE" })
+    await placeOrder({ client: c, product: p, player: pl, markup: markup(2000), coinValueMinor: 100, promoCode: "USE", profileId: "prof1" })
     expect(promos.promos[0].uses).toBe(1)
   })
 
@@ -233,7 +260,7 @@ describe("place-order promo codes", () => {
     const c = client("c1")
     const p = product({ id: "p1", distributorId: "d1", name: "Topup", cost: money(10000, "USD"), game: "mlbb" })
     const pl = player("u1", "s1")
-    const res = await placeOrder({ client: c, product: p, player: pl, markup: markup(2000), coinValueMinor: 100, promoCode: "NOPE" })
+    const res = await placeOrder({ client: c, product: p, player: pl, markup: markup(2000), coinValueMinor: 100, promoCode: "NOPE", profileId: "prof1" })
     expect(res.promoError).toBe("unknown")
     expect(res.order.price.minor).toBe(12000)
   })
@@ -246,7 +273,7 @@ describe("place-order promo codes", () => {
     const c = client("c1")
     const p = product({ id: "p1", distributorId: "d1", name: "Topup", cost: money(10000, "USD"), game: "mlbb" })
     const pl = player("u1", "s1")
-    const res = await placeOrder({ client: c, product: p, player: pl, markup: markup(2000), coinValueMinor: 100, promoCode: "EXP" })
+    const res = await placeOrder({ client: c, product: p, player: pl, markup: markup(2000), coinValueMinor: 100, promoCode: "EXP", profileId: "prof1" })
     expect(res.promoError).toBe("expired")
   })
 
@@ -258,7 +285,7 @@ describe("place-order promo codes", () => {
     const c = client("c1")
     const p = product({ id: "p1", distributorId: "d1", name: "Topup", cost: money(10000, "USD"), game: "mlbb" })
     const pl = player("u1", "s1")
-    const res = await placeOrder({ client: c, product: p, player: pl, markup: markup(2000), coinValueMinor: 100, promoCode: "EXH" })
+    const res = await placeOrder({ client: c, product: p, player: pl, markup: markup(2000), coinValueMinor: 100, promoCode: "EXH", profileId: "prof1" })
     expect(res.promoError).toBe("exhausted")
   })
 
@@ -269,9 +296,32 @@ describe("place-order promo codes", () => {
     const c = client("c1")
     const p = product({ id: "p1", distributorId: "d1", name: "Topup", cost: money(10000, "USD"), game: "mlbb" })
     const pl = player("u1", "s1")
-    const res = await placeOrder({ client: c, product: p, player: pl, markup: markup(2000), coinValueMinor: 100, promoCode: null })
+    const res = await placeOrder({ client: c, product: p, player: pl, markup: markup(2000), coinValueMinor: 100, promoCode: null, profileId: "prof1" })
     expect(res.promoError).toBeNull()
     expect(res.order.price.minor).toBe(12000)
+  })
+
+  test("input carrying consent values produces a saved order carrying the same values", async () => {
+    const repo = new InMemoryOrderRepository()
+    const placeOrder = createPlaceOrder({ orders: repo, newId: () => "o", newToken: () => "t", promos: new InMemoryPromoRepository(), now: () => "2026-01-01T00:00:00.000Z", wac: async () => 0 })
+    const c = client("c1")
+    const p = product({ id: "p1", distributorId: "d1", name: "Topup", cost: money(10000, "USD"), game: "mlbb" })
+    const pl = player("u1", "s1")
+    const res = await placeOrder({
+      client: c,
+      product: p,
+      player: pl,
+      markup: markup(2000),
+      coinValueMinor: 100,
+      promoCode: null,
+      profileId: "prof1",
+      termsVersion: "v1",
+      termsAcceptedAt: "2026-01-02T03:04:05.000Z",
+    })
+    expect(res.order.termsVersion).toBe("v1")
+    expect(res.order.termsAcceptedAt).toBe("2026-01-02T03:04:05.000Z")
+    expect(repo.saved[0].termsVersion).toBe("v1")
+    expect(repo.saved[0].termsAcceptedAt).toBe("2026-01-02T03:04:05.000Z")
   })
 })
 
@@ -282,7 +332,7 @@ describe("place-order snapshot", () => {
     const c = client("c1")
     const p = product({ id: "p1", distributorId: "d1", name: "Topup", cost: money(100, "USD"), game: "mlbb" })
     const pl = player("u1", "s1")
-    const result = (await placeOrder({ client: c, product: p, player: pl, markup: markup(2000), coinValueMinor: 100, promoCode: null })).order
+    const result = (await placeOrder({ client: c, product: p, player: pl, markup: markup(2000), coinValueMinor: 100, promoCode: null, profileId: "prof1" })).order
     expect(result.wacEgpMinor).toBe(5000)
     expect(result.cogsEgpMinor).toBe(Math.floor((100 * 5000 + 50) / 100))
     expect(result.tradingMarginMinor).toBe(result.price.minor - 100)
@@ -296,7 +346,7 @@ describe("place-order snapshot", () => {
     const c = client("c1")
     const p = product({ id: "p1", distributorId: "d1", name: "Topup", cost: money(10000, "USD"), game: "mlbb" })
     const pl = player("u1", "s1")
-    const res = await placeOrder({ client: c, product: p, player: pl, markup: markup(2000), coinValueMinor: 100, promoCode: "BIG" })
+    const res = await placeOrder({ client: c, product: p, player: pl, markup: markup(2000), coinValueMinor: 100, promoCode: "BIG", profileId: "prof1" })
     expect(res.order.tradingMarginMinor).toBeGreaterThanOrEqual(0)
     expect(res.order.tradingMarginMinor).toBe(res.order.price.minor - 10000)
   })

@@ -13,11 +13,12 @@ What each deliverable must do.
 | [05 Payments](05-payments.md) | Taking and reconciling client money. | In progress |
 | [06 Back Office](06-back-office.md) | Admin back office. | In progress |
 | [07 Treasury and Credits](07-treasury-and-credits.md) | Treasury and credit use cases. | In progress |
+| [09 Legal pages and checkout consent](09-legal-pages-and-checkout-consent.md) | Storefront legal pages and checkout policy consent. | In progress |
 | [JNY-001 Guest buys a topup](journeys/JNY-001-guest-buys-topup-end-to-end.md) | Guest buys a topup end to end. | In progress |
 
 ## Stories
 
-- [STF-001 Buy topup with InstaPay](stories/STF-001-buy-topup-with-instapay.md) — storefront purchase paid with InstaPay.
+- [STF-001 Buy topup with Paymob](stories/STF-001-buy-topup-with-paymob.md) — storefront purchase paid with Paymob.
 - [STF-002 Reject invalid player](stories/STF-002-reject-invalid-player.md) — reject an invalid player identity.
 - [STF-003 Apply promo code](stories/STF-003-apply-promo-code.md) — apply a promo code to an order.
 - [CRD-002 Deposit rejected beyond available USDT](stories/CRD-002-deposit-rejected-beyond-free-usdt.md) — reject a deposit that exceeds available USDT.

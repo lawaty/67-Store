@@ -72,8 +72,8 @@ function pendingFunding(overrides: Partial<WalletFunding> = {}): WalletFunding {
     coins: 2,
     wacEgpMinor: 5000,
     egpValueMinor: 10000,
-    provider: "INSTAPAY",
-    providerReference: "fake_instapay_fund_f1",
+    provider: "PAYMOB",
+    providerReference: "fake_paymob_fund_f1",
     status: "PENDING",
     depositId: null,
     createdAt: CREATED,
@@ -133,7 +133,7 @@ describe("startWalletFunding", () => {
     expect(fundings.created).toHaveLength(0)
   })
 
-  it("EGP -> INSTAPAY with fake_instapay_fund_<id> ref, PENDING row, redirect URL", async () => {
+  it("EGP -> PAYMOB with fake_paymob_fund_<id> ref, PENDING row, redirect URL", async () => {
     const fundings = createFundings()
     const start = createStartWalletFunding({
       quote: async () => quoteOk(),
@@ -145,7 +145,7 @@ describe("startWalletFunding", () => {
     expect(result).toEqual({
       ok: true,
       funding: pendingFunding({ createdAt: NOW }),
-      redirectUrl: "/checkout/fake/fake_instapay_fund_f1",
+      redirectUrl: "/checkout/fake/fake_paymob_fund_f1",
     })
     expect(fundings.created).toHaveLength(1)
     expect(fundings.created[0]).toEqual(pendingFunding({ createdAt: NOW }))

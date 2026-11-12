@@ -12,6 +12,7 @@ function makeFailedOrder(coinsCharged: number | null = 100) {
   return order({
     id: "o1",
     token: "t1",
+    profileId: "p1",
     client: client("c1"),
     product: product({ id: "mlbb:2793", game: "mlbb", distributorId: "2793", name: "55", cost: money(73, "USD") }),
     player: player("1", "2"),
@@ -25,12 +26,12 @@ function makeFailedOrder(coinsCharged: number | null = 100) {
 describe("createRefundOrder", () => {
   it("credits once and returns REFUNDED with refundedAt", async () => {
     const o = makeFailedOrder(100)
-    const orders: OrderRepository = { save: vi.fn(), findById: vi.fn(), findByToken: vi.fn(), update: vi.fn(), listRecent: vi.fn().mockResolvedValue([]), listByClient: vi.fn().mockResolvedValue([]), findByDistributorOrderId: vi.fn().mockResolvedValue(null), listByStatus: vi.fn().mockResolvedValue([]), search: vi.fn().mockResolvedValue({ rows: [], total: 0 }), sumCoinsChargedSince: vi.fn().mockResolvedValue(0) }
-    const wallets: WalletRepository = { getOrCreate: vi.fn(), credit: vi.fn().mockResolvedValue({ clientId: "c1", coinBalance: 100 }), debit: vi.fn(), listEntries: vi.fn() }
+    const orders: OrderRepository = { save: vi.fn(), findById: vi.fn(), findByToken: vi.fn(), update: vi.fn(), listRecent: vi.fn().mockResolvedValue([]), listByClient: vi.fn().mockResolvedValue([]), countByClient: vi.fn().mockResolvedValue(0), findByDistributorOrderId: vi.fn().mockResolvedValue(null), listByStatus: vi.fn().mockResolvedValue([]), search: vi.fn().mockResolvedValue({ rows: [], total: 0 }), sumCoinsChargedSince: vi.fn().mockResolvedValue(0), summarizeByClient: vi.fn().mockResolvedValue({ totalOrders: 0, totalPaidCoins: 0, monthlyPaidCoins: 0 }), listFailedUnrefundedCoinOrders: vi.fn().mockResolvedValue([]) }
+    const wallets: WalletRepository = { getOrCreate: vi.fn(), credit: vi.fn().mockResolvedValue({ clientId: "c1", coinBalance: 100 }), debit: vi.fn(), listEntries: vi.fn(), findEntryByReference: vi.fn().mockResolvedValue(null), reverseDebit: vi.fn().mockResolvedValue(undefined) }
     const now = vi.fn(() => "2026-01-01T00:00:00.000Z")
     const refund = createRefundOrder({ orders, wallets, now })
     const res = await refund(o)
-    expect(wallets.credit).toHaveBeenCalledWith("c1", 100, "refund:o1")
+    expect(wallets.credit).toHaveBeenCalledWith("c1", 100, "refund:o1", "refund:o1")
     expect(res.status).toBe("REFUNDED")
     expect(res.refundedAt).toBe("2026-01-01T00:00:00.000Z")
     expect(orders.update).toHaveBeenCalledTimes(1)
@@ -38,8 +39,8 @@ describe("createRefundOrder", () => {
 
   it("a second call does not credit again", async () => {
     const o = makeFailedOrder(100)
-    const orders: OrderRepository = { save: vi.fn(), findById: vi.fn(), findByToken: vi.fn(), update: vi.fn(), listRecent: vi.fn().mockResolvedValue([]), listByClient: vi.fn().mockResolvedValue([]), findByDistributorOrderId: vi.fn().mockResolvedValue(null), listByStatus: vi.fn().mockResolvedValue([]), search: vi.fn().mockResolvedValue({ rows: [], total: 0 }), sumCoinsChargedSince: vi.fn().mockResolvedValue(0) }
-    const wallets: WalletRepository = { getOrCreate: vi.fn(), credit: vi.fn().mockResolvedValue({ clientId: "c1", coinBalance: 100 }), debit: vi.fn(), listEntries: vi.fn() }
+    const orders: OrderRepository = { save: vi.fn(), findById: vi.fn(), findByToken: vi.fn(), update: vi.fn(), listRecent: vi.fn().mockResolvedValue([]), listByClient: vi.fn().mockResolvedValue([]), countByClient: vi.fn().mockResolvedValue(0), findByDistributorOrderId: vi.fn().mockResolvedValue(null), listByStatus: vi.fn().mockResolvedValue([]), search: vi.fn().mockResolvedValue({ rows: [], total: 0 }), sumCoinsChargedSince: vi.fn().mockResolvedValue(0), summarizeByClient: vi.fn().mockResolvedValue({ totalOrders: 0, totalPaidCoins: 0, monthlyPaidCoins: 0 }), listFailedUnrefundedCoinOrders: vi.fn().mockResolvedValue([]) }
+    const wallets: WalletRepository = { getOrCreate: vi.fn(), credit: vi.fn().mockResolvedValue({ clientId: "c1", coinBalance: 100 }), debit: vi.fn(), listEntries: vi.fn(), findEntryByReference: vi.fn().mockResolvedValue(null), reverseDebit: vi.fn().mockResolvedValue(undefined) }
     const now = vi.fn(() => "2026-01-01T00:00:00.000Z")
     const refund = createRefundOrder({ orders, wallets, now })
     const first = await refund(o)
@@ -51,8 +52,8 @@ describe("createRefundOrder", () => {
 
   it("coinsCharged null does nothing", async () => {
     const o = makeFailedOrder(null)
-    const orders: OrderRepository = { save: vi.fn(), findById: vi.fn(), findByToken: vi.fn(), update: vi.fn(), listRecent: vi.fn().mockResolvedValue([]), listByClient: vi.fn().mockResolvedValue([]), findByDistributorOrderId: vi.fn().mockResolvedValue(null), listByStatus: vi.fn().mockResolvedValue([]), search: vi.fn().mockResolvedValue({ rows: [], total: 0 }), sumCoinsChargedSince: vi.fn().mockResolvedValue(0) }
-    const wallets: WalletRepository = { getOrCreate: vi.fn(), credit: vi.fn(), debit: vi.fn(), listEntries: vi.fn() }
+    const orders: OrderRepository = { save: vi.fn(), findById: vi.fn(), findByToken: vi.fn(), update: vi.fn(), listRecent: vi.fn().mockResolvedValue([]), listByClient: vi.fn().mockResolvedValue([]), countByClient: vi.fn().mockResolvedValue(0), findByDistributorOrderId: vi.fn().mockResolvedValue(null), listByStatus: vi.fn().mockResolvedValue([]), search: vi.fn().mockResolvedValue({ rows: [], total: 0 }), sumCoinsChargedSince: vi.fn().mockResolvedValue(0), summarizeByClient: vi.fn().mockResolvedValue({ totalOrders: 0, totalPaidCoins: 0, monthlyPaidCoins: 0 }), listFailedUnrefundedCoinOrders: vi.fn().mockResolvedValue([]) }
+    const wallets: WalletRepository = { getOrCreate: vi.fn(), credit: vi.fn(), debit: vi.fn(), listEntries: vi.fn(), findEntryByReference: vi.fn().mockResolvedValue(null), reverseDebit: vi.fn().mockResolvedValue(undefined) }
     const now = vi.fn(() => "2026-01-01T00:00:00.000Z")
     const refund = createRefundOrder({ orders, wallets, now })
     const res = await refund(o)
@@ -65,6 +66,7 @@ describe("createRefundOrder", () => {
     const o = order({
       id: "o1",
       token: "t1",
+      profileId: "p1",
       client: client("c1"),
       product: product({ id: "mlbb:2793", game: "mlbb", distributorId: "2793", name: "55", cost: money(73, "USD") }),
       player: player("1", "2"),
@@ -73,8 +75,8 @@ describe("createRefundOrder", () => {
       coinsCharged: 100,
       markupBasisPoints: 2000,
     })
-    const orders: OrderRepository = { save: vi.fn(), findById: vi.fn(), findByToken: vi.fn(), update: vi.fn(), listRecent: vi.fn().mockResolvedValue([]), listByClient: vi.fn().mockResolvedValue([]), findByDistributorOrderId: vi.fn().mockResolvedValue(null), listByStatus: vi.fn().mockResolvedValue([]), search: vi.fn().mockResolvedValue({ rows: [], total: 0 }), sumCoinsChargedSince: vi.fn().mockResolvedValue(0) }
-    const wallets: WalletRepository = { getOrCreate: vi.fn(), credit: vi.fn(), debit: vi.fn(), listEntries: vi.fn() }
+    const orders: OrderRepository = { save: vi.fn(), findById: vi.fn(), findByToken: vi.fn(), update: vi.fn(), listRecent: vi.fn().mockResolvedValue([]), listByClient: vi.fn().mockResolvedValue([]), countByClient: vi.fn().mockResolvedValue(0), findByDistributorOrderId: vi.fn().mockResolvedValue(null), listByStatus: vi.fn().mockResolvedValue([]), search: vi.fn().mockResolvedValue({ rows: [], total: 0 }), sumCoinsChargedSince: vi.fn().mockResolvedValue(0), summarizeByClient: vi.fn().mockResolvedValue({ totalOrders: 0, totalPaidCoins: 0, monthlyPaidCoins: 0 }), listFailedUnrefundedCoinOrders: vi.fn().mockResolvedValue([]) }
+    const wallets: WalletRepository = { getOrCreate: vi.fn(), credit: vi.fn(), debit: vi.fn(), listEntries: vi.fn(), findEntryByReference: vi.fn().mockResolvedValue(null), reverseDebit: vi.fn().mockResolvedValue(undefined) }
     const now = vi.fn(() => "2026-01-01T00:00:00.000Z")
     const refund = createRefundOrder({ orders, wallets, now })
     const res = await refund(o)

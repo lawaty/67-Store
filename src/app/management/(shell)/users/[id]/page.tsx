@@ -6,9 +6,12 @@ import { notFound } from "next/navigation"
 import { adminGet } from "@/frontend/admin"
 import { ApiError } from "@/frontend/api"
 import type { AdminUserDetailDto } from "@/api/contracts"
-import { adjustWallet, clearVipOverride, saveVipOverride } from "../actions"
 import { Icon } from "@/app/icons"
-import { SubmitButton } from "@/app/submit-button"
+import { statusClass, statusLabel } from "@/app/status-label"
+import { formatMinor } from "@/frontend/format"
+import { ClickableCard, ClickableRow } from "../../../clickable-row"
+import { WalletAdjustModal } from "../wallet-adjust-modal"
+import { VipOverrideModal } from "../vip-override-modal"
 
 export const dynamic = "force-dynamic"
 
@@ -23,6 +26,14 @@ function formatDate(value: string) {
 function formatPercent(basisPoints: number): string {
   const percent = basisPoints / 100
   return Number.isInteger(percent) ? `${percent}%` : `${percent.toFixed(2).replace(/\.?0+$/, "")}%`
+}
+
+function currencyLabel(currency: string): string {
+  return currency === "USD" ? "USDT" : currency
+}
+
+function formatMoney(minor: number, currency: string): string {
+  return `${formatMinor(minor, currency)} ${currencyLabel(currency)}`
 }
 
 export default async function UserDetailPage({
@@ -54,9 +65,31 @@ export default async function UserDetailPage({
 
       <header>
         <p className="eyebrow"><Icon name="user" size={12} />ملف المستخدم</p>
-        <h1 className="display-2 mt-3 break-all">{data.account.email}</h1>
-        <p className="num mt-2 text-sm text-muted">{data.account.clientId}</p>
+        <h1 className="display-2 mt-3 break-all">{data.account.username}</h1>
+        <p className="mt-2 text-sm text-muted">{data.account.email}</p>
       </header>
+
+      <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="rounded-2xl border border-line bg-surface p-4 shadow-e1">
+          <p className="eyebrow">إجمالي الطلبات</p>
+          <p className="num mt-2 text-xl font-bold text-ink" dir="ltr">{data.stats.totalOrders}</p>
+        </div>
+        <div className="rounded-2xl border border-line bg-surface p-4 shadow-e1">
+          <p className="eyebrow">إجمالي الكمية المدفوعة</p>
+          <p className="num mt-2 text-xl font-bold text-ink" dir="ltr">{data.stats.totalPaidCoins}</p>
+        </div>
+        <div className="rounded-2xl border border-line bg-surface p-4 shadow-e1">
+          <p className="eyebrow">الكمية المدفوعة هذا الشهر</p>
+          <p className="num mt-2 text-xl font-bold text-ink" dir="ltr">{data.stats.monthlyPaidCoins}</p>
+        </div>
+        <div className="rounded-2xl border border-line bg-surface p-4 shadow-e1">
+          <p className="eyebrow">المستوى الحالي</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-line px-2 py-0.5 text-xs font-semibold">{data.level.title}</span>
+            <span className="num text-sm font-bold text-ink" dir="ltr">{formatPercent(data.markupBasisPoints)}</span>
+          </div>
+        </div>
+      </div>
 
       {sp.ok === "1" ? <p className="notice mt-4">تم تعديل المحفظة بنجاح.</p> : null}
       {sp.error === "insufficient" ? <p className="alert mt-4">الرصيد ما يكفي.</p> : null}
@@ -122,6 +155,62 @@ export default async function UserDetailPage({
               </>
             )}
           </section>
+
+          <section className="mt-4 rounded-2xl border border-line bg-surface p-5 shadow-e1">
+            <h2 className="text-base font-bold text-ink">سجل الطلبات</h2>
+            {data.orders.length === 0 ? (
+              <p className="empty mt-4">لا توجد طلبات</p>
+            ) : (
+              <>
+                <div className="table-desktop mt-4 overflow-hidden rounded-2xl border border-line">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>الطلب</th>
+                        <th>المنتج</th>
+                        <th>الملف</th>
+                        <th>السعر</th>
+                        <th>الحالة</th>
+                        <th>التاريخ</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.orders.map((order) => (
+                        <ClickableRow key={order.token} href={`/order/${order.token}`}>
+                          <td>
+                            <a className="num font-semibold text-ink underline decoration-line underline-offset-4" href={`/order/${order.token}`}>
+                              {order.token.slice(0, 8).toUpperCase()}
+                            </a>
+                          </td>
+                          <td className="font-semibold">{order.productName}</td>
+                          <td className="num text-sm text-muted">{order.game.toUpperCase()} · {order.userId}/{order.serverId}</td>
+                          <td><span className="num font-bold" dir="ltr">{formatMoney(order.price.minor, order.price.currency)}</span></td>
+                          <td><span className={statusClass(order.status)}>{statusLabel(order.status)}</span></td>
+                          <td><span className="num text-sm text-muted">{formatDate(order.createdAt ?? "")}</span></td>
+                        </ClickableRow>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="table-cards mt-4">
+                  {data.orders.map((order) => (
+                    <ClickableCard key={order.token} href={`/order/${order.token}`} className="block cursor-pointer rounded-2xl border border-line bg-surface p-4 shadow-e1">
+                      <div className="flex items-start justify-between gap-3">
+                        <span className="num text-sm font-bold text-ink">{order.token.slice(0, 8).toUpperCase()}</span>
+                        <span className={statusClass(order.status)}>{statusLabel(order.status)}</span>
+                      </div>
+                      <p className="mt-2 text-sm font-semibold text-ink">{order.productName}</p>
+                      <p className="num mt-1 text-sm text-muted">{order.game.toUpperCase()} · {order.userId}/{order.serverId}</p>
+                      <div className="mt-2 flex flex-wrap items-center justify-between gap-3 text-sm">
+                        <span className="num font-bold" dir="ltr">{formatMoney(order.price.minor, order.price.currency)}</span>
+                        <span className="num text-sm text-muted">{formatDate(order.createdAt ?? "")}</span>
+                      </div>
+                    </ClickableCard>
+                  ))}
+                </div>
+              </>
+            )}
+          </section>
         </div>
 
         <aside className="space-y-4">
@@ -167,61 +256,21 @@ export default async function UserDetailPage({
               </div>
             ) : null}
 
-            <form action={saveVipOverride} className="mt-4 stack">
-              <input type="hidden" name="accountId" value={data.account.id} />
-              <div className="field">
-                <label htmlFor="vipMarkupPercent">هامش مخصص (٪)</label>
-                <input
-                  id="vipMarkupPercent"
-                  name="markupPercent"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  defaultValue={data.override ? data.override.basisPoints / 100 : data.markupBasisPoints / 100}
-                  required
-                />
-              </div>
-              <div className="field">
-                <label htmlFor="vipNote">ملاحظة (اختياري)</label>
-                <input id="vipNote" name="note" defaultValue={data.override?.note ?? ""} />
-              </div>
-              <div className="flex gap-2">
-                <SubmitButton className="btn btn-primary btn-sm flex-1">
-                  <Icon name="save" size={14} /> حفظ الهامش
-                </SubmitButton>
-                {data.override ? (
-                  <button formAction={clearVipOverride} className="btn btn-ghost btn-sm" type="submit">
-                    إزالة
-                  </button>
-                ) : null}
-              </div>
-            </form>
+            <div className="mt-4">
+              <VipOverrideModal
+                accountId={data.account.id}
+                defaultPercent={data.override ? data.override.basisPoints / 100 : data.markupBasisPoints / 100}
+                defaultNote={data.override?.note ?? ""}
+                hasOverride={data.override !== null}
+              />
+            </div>
           </section>
 
           <section className="rounded-2xl border border-line bg-surface p-5 shadow-e1">
             <h2 className="text-base font-bold text-ink">تعديل المحفظة</h2>
-            <form action={adjustWallet} className="mt-4 stack">
-              <input type="hidden" name="clientId" value={data.account.clientId} />
-              <input type="hidden" name="accountId" value={data.account.id} />
-              <div className="field">
-                <label htmlFor="amount">عدد العملات</label>
-                <input id="amount" name="amount" type="number" min={1} step={1} />
-              </div>
-              <div className="field">
-                <label>الاتجاه</label>
-                <div className="flex gap-4">
-                  <label className="check"><input type="radio" name="direction" value="credit" defaultChecked /> إضافة</label>
-                  <label className="check"><input type="radio" name="direction" value="debit" /> خصم</label>
-                </div>
-              </div>
-              <div className="field">
-                <label htmlFor="reason">السبب (مطلوب)</label>
-                <input id="reason" name="reason" required />
-              </div>
-              <SubmitButton className="btn btn-primary btn-block">
-                <Icon name="save" size={15} /> تطبيق
-              </SubmitButton>
-            </form>
+            <div className="mt-4">
+              <WalletAdjustModal clientId={data.account.clientId} accountId={data.account.id} />
+            </div>
           </section>
         </aside>
       </div>

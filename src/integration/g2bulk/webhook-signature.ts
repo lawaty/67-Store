@@ -37,10 +37,15 @@ export function verifyWebhookSignature(input: VerifyInput): boolean {
   if (secret.startsWith("whsec_")) {
     secret = secret.slice("whsec_".length)
   }
-  let key: Buffer
-  try {
-    key = Buffer.from(secret, "base64")
-  } catch {
+  // `Buffer.from(x, "base64")` never throws: it silently drops characters
+  // outside the alphabet and returns an empty buffer for non-base64 input, so
+  // a misconfigured secret would be used as a garbage HMAC key instead of
+  // failing closed. Reject implausible base64 before decoding.
+  if (!/^[A-Za-z0-9+/_-]+={0,2}$/.test(secret)) {
+    return false
+  }
+  const key = Buffer.from(secret, "base64")
+  if (key.length === 0) {
     return false
   }
   const expected = createHmac("sha256", key).update(content).digest()

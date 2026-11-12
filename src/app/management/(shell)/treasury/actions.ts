@@ -24,16 +24,16 @@ export async function recordFunding(formData: FormData): Promise<void> {
   }
 
   const egpPaidMinor = majorToMinor(egpMajor, "EGP")
-  const usdtMinor = majorToMinor(usdtMajor, "USD")
+  const usdtMilli = Math.round(usdtMajor * 1000)
 
-  if (!Number.isSafeInteger(egpPaidMinor) || egpPaidMinor <= 0 || !Number.isSafeInteger(usdtMinor) || usdtMinor <= 0) {
+  if (!Number.isSafeInteger(egpPaidMinor) || egpPaidMinor <= 0 || !Number.isSafeInteger(usdtMilli) || usdtMilli <= 0) {
     redirect("/management/treasury?error=1")
   }
 
   try {
     const result = await (await serverApi()).post<{ ok: boolean }>("/api/admin/funding", {
       egpPaidMinor,
-      usdtMinor,
+      usdtMilli,
     })
     if (!result.ok) redirect("/management/treasury?error=1")
   } catch (error) {

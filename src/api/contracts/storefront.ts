@@ -5,7 +5,14 @@
 import type { MoneyDto } from "./money"
 import type { ProfileDto } from "./account"
 
-export type StorefrontMethodDto = "instapay" | "crypto" | "coins"
+export type StorefrontMethodDto = "paymob" | "crypto" | "coins"
+
+export type StorefrontGatewaysDto = {
+  readonly card: boolean
+  readonly wallet: boolean
+  readonly crypto: boolean
+  readonly coins: boolean
+}
 
 export type StorefrontProductDto = {
   readonly id: string
@@ -27,4 +34,5 @@ export type StorefrontDto = {
   readonly coinValue: number
   readonly profiles: readonly ProfileDto[]
   readonly defaultMethod: StorefrontMethodDto
+  readonly gateways: StorefrontGatewaysDto
 }

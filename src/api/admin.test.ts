@@ -5,12 +5,13 @@ import { product } from '@/catalogue'
 import { defaultLevelsFor, levelsToCurve, order, resolveMarkupBasisPoints } from "@/ordering"
 import { player } from "@/ordering"
 import { money } from "@/shared/money"
-import { readOperationsMode } from "@/shared/operations-mode"
 import { EGP_RATE_KEY, P2P_RATE_HISTORY_KEY, P2P_RATE_LAST_KEY, P2P_RATE_MANUAL_KEY } from "@/treasury"
 import {
   adjustWallet,
   clearMarkupOverride,
+  createAchievement,
   createPromo,
+  listAchievements,
   listProducts,
   listUsers,
   readAdminStats,
@@ -20,23 +21,27 @@ import {
   readUser,
   recordDeposit,
   recordFunding,
+  removeAchievement,
   rollbackFunding,
   saveMarkupOverride,
   saveP2pSettings,
   saveSettings,
   saveVipLevels,
   searchOrders,
+  updateAchievement,
 } from "./admin"
 
 const placed = order({
   id: "o1",
   token: "t1",
+  profileId: "p1",
   client: client("c1"),
   product: product({ id: "p1", distributorId: "d1", name: "86", cost: money(1000, "USD"), game: "mlbb" }),
   player: player("1", "2"),
   price: money(1200, "USD"),
   status: "PAID",
   createdAt: new Date("2026-01-01T00:00:00.000Z"),
+  costUsdtMilli: 1377,
   markupBasisPoints: 0,
 })
 
@@ -44,6 +49,15 @@ function fakeContainer(overrides: Partial<Container> = {}): Container {
   const now = new Date().toISOString()
   return {
 
+    achievements: {
+      listAll: async () => [],
+      listActive: async () => [],
+      create: async (input: any) => input as any,
+      update: async (_id: string, input: any) => ({ id: _id, ...input } as any),
+      remove: async () => {},
+      listProgress: async () => [],
+      upsertProgress: async () => {},
+    },
     promos: {
       create: async () => {},
       listAll: async () => [],
@@ -69,26 +83,29 @@ function fakeContainer(overrides: Partial<Container> = {}): Container {
       list: async () => ({ rows: [], total: 0 }),
       findById: async () => null,
       findByEmail: async () => null,
-      create: async () => ({ id: "", clientId: "", email: "", passwordHash: "" }),
+      create: async () => ({ id: "", clientId: "", email: "", username: "", passwordHash: "" }),
       listPreferences: async () => ({}),
       setPreference: async () => {},
     },
     clients: { findById: async () => client("c1"), save: async () => {} },
-    orders: {
-      listRecent: async () => [placed],
-      search: async () => ({ rows: [placed], total: 1 }),
-      save: async () => {},
-      findById: async () => placed,
-      findByToken: async () => placed,
-      update: async () => {},
-      listByClient: async () => [],
-      findByDistributorOrderId: async () => null,
-      listByStatus: async () => [],
-      sumCoinsChargedSince: async () => 0,
-    },
+      orders: {
+        listRecent: async () => [placed],
+        search: async () => ({ rows: [placed], total: 1 }),
+        save: async () => {},
+        findById: async () => placed,
+        findByToken: async () => placed,
+        update: async () => {},
+        listByClient: async () => [],
+        countByClient: async () => 0,
+        findByDistributorOrderId: async () => null,
+        listByStatus: async () => [],
+        listFailedUnrefundedCoinOrders: async () => [],
+        sumCoinsChargedSince: async () => 70,
+        summarizeByClient: async () => ({ totalOrders: 0, totalPaidCoins: 0, monthlyPaidCoins: 0 }),
+      },
     activity: { sumQualifiedVolumeSince: async () => 0 },
     distributor: {
-      getBalance: async () => ({ balanceMinor: 100000 }),
+      getBalance: async () => ({ balanceMilli: 1000000 }),
       checkPlayer: async () => ({ valid: true, name: "P" }),
       placeOrder: async () => ({ distributorOrderId: "d", status: "PENDING" }),
       getOrder: async () => ({ distributorOrderId: "d", status: "COMPLETED" }),
@@ -104,11 +121,11 @@ function fakeContainer(overrides: Partial<Container> = {}): Container {
       appendCostHistory: async () => {},
     },
     treasury: {
-      snapshot: async () => ({ usdtMinor: 0, basisEgpMinor: 0, wacEgpMinor: 0 }),
+      snapshot: async () => ({ usdtMilli: 0, basisEgpMinor: 0, wacEgpMinor: 0 }),
       recordFunding: async () => ({
         id: "f",
         egpPaidMinor: 0,
-        usdtMinor: 0,
+        usdtMilli: 0,
         createdAt: "now",
       }),
 
@@ -117,16 +134,16 @@ function fakeContainer(overrides: Partial<Container> = {}): Container {
       },
       reconcile: async () => ({
         id: "r",
-        expectedUsdtMinor: 0,
-        supplierUsdtMinor: 0,
-        gapUsdtMinor: 0,
+        expectedUsdtMilli: 0,
+        supplierUsdtMilli: 0,
+        gapUsdtMilli: 0,
         status: "OK",
         createdAt: "now",
       }),
     } as any,
     coinSupply: { totalCoins: async () => 0 },
-    fundings: { append: async () => {}, totals: async () => ({ usdtMinor: 0, basisEgpMinor: 0 }), listRecent: async () => [], findById: async () => null, remove: async () => false },
-    consumptions: { append: async () => {}, totals: async () => ({ usdtMinor: 0, basisEgpMinor: 0 }), findByOrder: async () => null, sumUsdtSince: async () => 0, listRecent: async () => [] },
+    fundings: { append: async () => {}, totals: async () => ({ usdtMilli: 0, basisEgpMinor: 0 }), listRecent: async () => [], findById: async () => null, remove: async () => false },
+    consumptions: { append: async () => {}, totals: async () => ({ usdtMilli: 0, basisEgpMinor: 0 }), findByOrder: async () => null, sumUsdtSince: async () => 0, listRecent: async () => [] },
     reconciliations: { append: async () => {}, latest: async () => null },
     deposits: { append: async () => {}, list: async () => [], listByClient: async () => [], listRecent: async () => [], listSince: async () => [], coinWacEgpMinor: async () => 0 },
     orderReport: {
@@ -137,7 +154,6 @@ function fakeContainer(overrides: Partial<Container> = {}): Container {
     },
     alerts: { append: async () => ({ id: "a", kind: "k", message: "m", createdAt: now }), listRecent: async () => [] },
     p2pRate: { read: async () => null },
-    operationsMode: async () => "sandbox",
     liveReady: false,
     syncCatalogue: async () => ({ synced: 0, deactivated: 0 }),
     checkPrice: async () => ({ ok: true } as any),
@@ -146,7 +162,7 @@ function fakeContainer(overrides: Partial<Container> = {}): Container {
     confirmPayment: async () => ({} as any),
     fulfilOrder: async () => ({} as any),
     syncFulfilment: async () => ({} as any),
-    reconcileTreasury: async () => ({ id: "r", expectedUsdtMinor: 0, supplierUsdtMinor: 0, gapUsdtMinor: 0, status: "OK", createdAt: now } as any),
+
     recordDeposit: async () => ({ ok: true } as any),
     ...overrides,
   } as unknown as Container
@@ -229,7 +245,7 @@ describe("readSettings", () => {
       coinIndexLastMoveBps: null,
       coinIndexCapped: false,
       p2pRateEgp: null,
-      defaultMethod: "instapay",
+      defaultMethod: "paymob",
     })
   })
 
@@ -289,7 +305,7 @@ describe("readSettings", () => {
       coinIndexLastMoveBps: null,
       coinIndexCapped: false,
       p2pRateEgp: 48.75,
-      defaultMethod: "instapay",
+      defaultMethod: "paymob",
     })
   })
 
@@ -626,6 +642,8 @@ describe("adjustWallet", () => {
         debit: async () => true,
         getOrCreate: async () => ({ clientId: "c1", coinBalance: 0 }),
         listEntries: async () => [],
+        findEntryByReference: async () => null,
+        reverseDebit: async () => {},
       },
     })
 
@@ -648,6 +666,8 @@ describe("adjustWallet", () => {
         debit: async () => false,
         getOrCreate: async () => ({ clientId: "c1", coinBalance: 0 }),
         listEntries: async () => [],
+        findEntryByReference: async () => null,
+        reverseDebit: async () => {},
       },
     })
 
@@ -688,12 +708,15 @@ describe("searchOrders", () => {
     expect(page.rows[0]).toEqual({
       id: "o1",
       token: "t1",
-      clientId: "c1",
+      user: { id: null, username: null, email: null },
+      profile: { game: "mlbb", userId: "1", serverId: "2" },
       productName: "86",
       player: { userId: "1", serverId: "2" },
       price: money(1200, "USD"),
       discountMinor: null,
       costMinor: null,
+      costUsdtMilli: 1377,
+      coinsCharged: null,
       status: "PAID",
       createdAt: "2026-01-01T00:00:00.000Z",
     })
@@ -708,15 +731,15 @@ describe("readAdminStats", () => {
     })
     const container = fakeContainer({
       distributor: {
-        getBalance: async () => ({ balanceMinor: 90000 }),
+        getBalance: async () => ({ balanceMilli: 900000 }),
         checkPlayer: async () => ({ valid: true, name: "P" }),
         placeOrder: async () => ({ distributorOrderId: "d", status: "PENDING" }),
         getOrder: async () => ({ distributorOrderId: "d", status: "COMPLETED" }),
       },
       p2pRate: { read: readP2p },
       treasury: {
-        snapshot: async () => ({ usdtMinor: 70000, basisEgpMinor: 0, wacEgpMinor: 5100 }),
-        recordFunding: async () => ({ id: "f", egpPaidMinor: 0, usdtMinor: 0, createdAt: "now" }),
+        snapshot: async () => ({ usdtMilli: 700000, basisEgpMinor: 0, wacEgpMinor: 5100 }),
+        recordFunding: async () => ({ id: "f", egpPaidMinor: 0, usdtMilli: 0, createdAt: "now" }),
         consumeForOrder: async () => { throw new Error("unused") },
         reconcile: async () => { throw new Error("unused") },
       } as any,
@@ -738,7 +761,7 @@ describe("readAdminStats", () => {
   it("uses available USDT while keeping live balance displayed", async () => {
     const container = fakeContainer({
       distributor: {
-        getBalance: async () => ({ balanceMinor: 90000 }),
+        getBalance: async () => ({ balanceMilli: 900000 }),
         checkPlayer: async () => ({ valid: true, name: "P" }),
         placeOrder: async () => ({ distributorOrderId: "d", status: "PENDING" }),
         getOrder: async () => ({ distributorOrderId: "d", status: "COMPLETED" }),
@@ -752,8 +775,8 @@ describe("readAdminStats", () => {
         }),
       },
       treasury: {
-        snapshot: async () => ({ usdtMinor: 70000, basisEgpMinor: 0, wacEgpMinor: 5100 }),
-        recordFunding: async () => ({ id: "f", egpPaidMinor: 0, usdtMinor: 0, createdAt: "now" }),
+        snapshot: async () => ({ usdtMilli: 700000, basisEgpMinor: 0, wacEgpMinor: 5100 }),
+        recordFunding: async () => ({ id: "f", egpPaidMinor: 0, usdtMilli: 0, createdAt: "now" }),
 
         consumeForOrder: async () => { throw new Error("unused") },
         reconcile: async () => { throw new Error("unused") },
@@ -764,10 +787,10 @@ describe("readAdminStats", () => {
 
     const stats = await readAdminStats(container)
 
-    expect(stats.balanceUsdtMinor).toBe(90000)
+    expect(stats.balanceUsdtMilli).toBe(900000)
     expect(stats.p2pEgpPerUsdtMinor).toBe(5200)
     expect(stats.wacEgpMinor).toBe(5100)
-    expect(stats.availableUsdtMinor).toBe(69990)
+    expect(stats.availableUsdtMilli).toBe(699900)
     expect(stats.balanceError).toBe(false)
     expect(stats.updatedAt).toEqual(expect.any(String))
     expect(Number.isNaN(Date.parse(stats.updatedAt))).toBe(false)
@@ -792,8 +815,8 @@ describe("readAdminStats", () => {
         }),
       },
       treasury: {
-        snapshot: async () => ({ usdtMinor: 70000, basisEgpMinor: 0, wacEgpMinor: 5100 }),
-        recordFunding: async () => ({ id: "f", egpPaidMinor: 0, usdtMinor: 0, createdAt: "now" }),
+        snapshot: async () => ({ usdtMilli: 700000, basisEgpMinor: 0, wacEgpMinor: 5100 }),
+        recordFunding: async () => ({ id: "f", egpPaidMinor: 0, usdtMilli: 0, createdAt: "now" }),
 
         consumeForOrder: async () => { throw new Error("unused") },
         reconcile: async () => { throw new Error("unused") },
@@ -803,9 +826,9 @@ describe("readAdminStats", () => {
 
     const stats = await readAdminStats(container)
 
-    expect(stats.balanceUsdtMinor).toBeNull()
+    expect(stats.balanceUsdtMilli).toBeNull()
     expect(stats.balanceError).toBe(true)
-    expect(stats.availableUsdtMinor).toBe(69990)
+    expect(stats.availableUsdtMilli).toBe(699900)
     expect(stats.p2pEgpPerUsdtMinor).toBe(5200)
     expect(stats.wacEgpMinor).toBe(5100)
   })
@@ -813,7 +836,7 @@ describe("readAdminStats", () => {
   it("p2p failure degrades to null without failing available USDT", async () => {
     const container = fakeContainer({
       distributor: {
-        getBalance: async () => ({ balanceMinor: 90000 }),
+        getBalance: async () => ({ balanceMilli: 900000 }),
         checkPlayer: async () => ({ valid: true, name: "P" }),
         placeOrder: async () => ({ distributorOrderId: "d", status: "PENDING" }),
         getOrder: async () => ({ distributorOrderId: "d", status: "COMPLETED" }),
@@ -824,8 +847,8 @@ describe("readAdminStats", () => {
         },
       },
       treasury: {
-        snapshot: async () => ({ usdtMinor: 70000, basisEgpMinor: 0, wacEgpMinor: 5100 }),
-        recordFunding: async () => ({ id: "f", egpPaidMinor: 0, usdtMinor: 0, createdAt: "now" }),
+        snapshot: async () => ({ usdtMilli: 700000, basisEgpMinor: 0, wacEgpMinor: 5100 }),
+        recordFunding: async () => ({ id: "f", egpPaidMinor: 0, usdtMilli: 0, createdAt: "now" }),
 
         consumeForOrder: async () => { throw new Error("unused") },
         reconcile: async () => { throw new Error("unused") },
@@ -836,17 +859,17 @@ describe("readAdminStats", () => {
 
     const stats = await readAdminStats(container)
 
-    expect(stats.balanceUsdtMinor).toBe(90000)
+    expect(stats.balanceUsdtMilli).toBe(900000)
     expect(stats.p2pEgpPerUsdtMinor).toBeNull()
     expect(stats.wacEgpMinor).toBe(5100)
-    expect(stats.availableUsdtMinor).toBe(70000)
+    expect(stats.availableUsdtMilli).toBe(700000)
     expect(stats.balanceError).toBe(false)
   })
 
   it("treasury snapshot failure degrades to null", async () => {
     const container = fakeContainer({
       distributor: {
-        getBalance: async () => ({ balanceMinor: 70000 }),
+        getBalance: async () => ({ balanceMilli: 700000 }),
         checkPlayer: async () => ({ valid: true, name: "P" }),
         placeOrder: async () => ({ distributorOrderId: "d", status: "PENDING" }),
         getOrder: async () => ({ distributorOrderId: "d", status: "COMPLETED" }),
@@ -861,7 +884,7 @@ describe("readAdminStats", () => {
       },
       treasury: {
         snapshot: async () => { throw new Error("wac down") },
-        recordFunding: async () => ({ id: "f", egpPaidMinor: 0, usdtMinor: 0, createdAt: "now" }),
+        recordFunding: async () => ({ id: "f", egpPaidMinor: 0, usdtMilli: 0, createdAt: "now" }),
 
         consumeForOrder: async () => { throw new Error("unused") },
         reconcile: async () => { throw new Error("unused") },
@@ -872,10 +895,10 @@ describe("readAdminStats", () => {
 
     const stats = await readAdminStats(container)
 
-    expect(stats.balanceUsdtMinor).toBe(70000)
+    expect(stats.balanceUsdtMilli).toBe(700000)
     expect(stats.p2pEgpPerUsdtMinor).toBe(5200)
     expect(stats.wacEgpMinor).toBeNull()
-    expect(stats.availableUsdtMinor).toBeNull()
+    expect(stats.availableUsdtMilli).toBeNull()
     expect(stats.balanceError).toBe(false)
   })
 })
@@ -896,8 +919,8 @@ describe("listProducts", () => {
           appendCostHistory: async () => {},
         },
         treasury: {
-          snapshot: async () => ({ usdtMinor: 100, basisEgpMinor: 0, wacEgpMinor: 0 }),
-          recordFunding: async () => ({ id: "f", egpPaidMinor: 0, usdtMinor: 0, createdAt: "now" }),
+          snapshot: async () => ({ usdtMilli: 1000, basisEgpMinor: 0, wacEgpMinor: 0 }),
+          recordFunding: async () => ({ id: "f", egpPaidMinor: 0, usdtMilli: 0, createdAt: "now" }),
 
           consumeForOrder: async () => { throw new Error("unused") },
           reconcile: async () => { throw new Error("unused") },
@@ -953,7 +976,7 @@ describe("listProducts", () => {
         },
         treasury: {
           snapshot: async () => { throw new Error("offline") },
-          recordFunding: async () => ({ id: "f", egpPaidMinor: 0, usdtMinor: 0, createdAt: "now" }),
+          recordFunding: async () => ({ id: "f", egpPaidMinor: 0, usdtMilli: 0, createdAt: "now" }),
 
           consumeForOrder: async () => { throw new Error("unused") },
           reconcile: async () => { throw new Error("unused") },
@@ -980,14 +1003,14 @@ describe("readDashboard", () => {
   it("computes the live balance display and uses available USDT", async () => {
     const container = fakeContainer({
       distributor: {
-        getBalance: async () => ({ balanceMinor: 100000 }),
+        getBalance: async () => ({ balanceMilli: 1000000 }),
         checkPlayer: async () => ({ valid: true, name: "P" }),
         placeOrder: async () => ({ distributorOrderId: "d", status: "PENDING" }),
         getOrder: async () => ({ distributorOrderId: "d", status: "COMPLETED" }),
       },
       treasury: {
-        snapshot: async () => ({ usdtMinor: 70000, basisEgpMinor: 0, wacEgpMinor: 0 }),
-        recordFunding: async () => ({ id: "f", egpPaidMinor: 0, usdtMinor: 0, createdAt: "now" }),
+        snapshot: async () => ({ usdtMilli: 700000, basisEgpMinor: 0, wacEgpMinor: 0 }),
+        recordFunding: async () => ({ id: "f", egpPaidMinor: 0, usdtMilli: 0, createdAt: "now" }),
 
         consumeForOrder: async () => { throw new Error("unused") },
         reconcile: async () => { throw new Error("unused") },
@@ -997,13 +1020,13 @@ describe("readDashboard", () => {
 
     const dashboard = await readDashboard(container)
 
-    expect(dashboard.balance).toEqual({ usdMinor: 100000, egpMinor: 4850000 })
+    expect(dashboard.balance).toEqual({ usdMilli: 1000000, egpMinor: 4850000 })
     expect(dashboard.balanceError).toBe(false)
     expect(dashboard.unfulfillableCount).toBe(1)
     expect(dashboard.showWarning).toBe(false)
-    expect(dashboard.treasury.availableUsdtMinor).toBe(69990)
-    expect(dashboard.treasury.recordedUsdtMinor).toBe(70000)
-    expect(dashboard.treasury.freeUsdtMinor).toBe(30000)
+    expect(dashboard.treasury.availableUsdtMilli).toBe(699900)
+    expect(dashboard.treasury.recordedUsdtMilli).toBe(700000)
+    expect(dashboard.treasury.freeUsdtMilli).toBe(300000)
     expect(dashboard.pricing.baseMarkupBasisPoints).toBe(2000)
     expect(dashboard.pricing.vipCurve).toEqual([
       { coins: 0, basisPoints: 2000 },
@@ -1028,9 +1051,9 @@ describe("readDashboard", () => {
     expect(dashboard.balance).toBeNull()
     expect(dashboard.balanceError).toBe(true)
     expect(dashboard.balanceAt).toBeNull()
-    expect(dashboard.treasury.recordedUsdtMinor).toBe(0)
-    expect(dashboard.treasury.freeUsdtMinor).toBe(0)
-    expect(dashboard.treasury.availableUsdtMinor).toBe(0)
+    expect(dashboard.treasury.recordedUsdtMilli).toBe(0)
+    expect(dashboard.treasury.freeUsdtMilli).toBe(0)
+    expect(dashboard.treasury.availableUsdtMilli).toBe(0)
   })
 
   it("uses available USDT even when live balance fetch fails", async () => {
@@ -1044,8 +1067,8 @@ describe("readDashboard", () => {
         getOrder: async () => ({ distributorOrderId: "d", status: "COMPLETED" }),
       },
       treasury: {
-        snapshot: async () => ({ usdtMinor: 4000, basisEgpMinor: 0, wacEgpMinor: 0 }),
-        recordFunding: async () => ({ id: "f", egpPaidMinor: 0, usdtMinor: 0, createdAt: "now" }),
+        snapshot: async () => ({ usdtMilli: 40000, basisEgpMinor: 0, wacEgpMinor: 0 }),
+        recordFunding: async () => ({ id: "f", egpPaidMinor: 0, usdtMilli: 0, createdAt: "now" }),
 
         consumeForOrder: async () => { throw new Error("unused") },
         reconcile: async () => { throw new Error("unused") },
@@ -1057,23 +1080,23 @@ describe("readDashboard", () => {
 
     expect(dashboard.balance).toBeNull()
     expect(dashboard.balanceError).toBe(true)
-    expect(dashboard.treasury.availableUsdtMinor).toBe(3950)
+    expect(dashboard.treasury.availableUsdtMilli).toBe(39500)
     expect(dashboard.treasury.availableCoins).toBe(3950)
-    expect(dashboard.treasury.recordedUsdtMinor).toBe(4000)
-    expect(dashboard.treasury.freeUsdtMinor).toBe(0)
+    expect(dashboard.treasury.recordedUsdtMilli).toBe(40000)
+    expect(dashboard.treasury.freeUsdtMilli).toBe(0)
   })
 
   it("pending does not affect free or available in the dashboard", async () => {
     const container = fakeContainer({
       distributor: {
-        getBalance: async () => ({ balanceMinor: 100000 }),
+        getBalance: async () => ({ balanceMilli: 1000000 }),
         checkPlayer: async () => ({ valid: true, name: "P" }),
         placeOrder: async () => ({ distributorOrderId: "d", status: "PENDING" }),
         getOrder: async () => ({ distributorOrderId: "d", status: "COMPLETED" }),
       },
       treasury: {
-        snapshot: async () => ({ usdtMinor: 70000, basisEgpMinor: 0, wacEgpMinor: 0 }),
-        recordFunding: async () => ({ id: "f", egpPaidMinor: 0, usdtMinor: 0, createdAt: "now" }),
+        snapshot: async () => ({ usdtMilli: 700000, basisEgpMinor: 0, wacEgpMinor: 0 }),
+        recordFunding: async () => ({ id: "f", egpPaidMinor: 0, usdtMilli: 0, createdAt: "now" }),
 
         consumeForOrder: async () => { throw new Error("unused") },
         reconcile: async () => { throw new Error("unused") },
@@ -1081,9 +1104,9 @@ describe("readDashboard", () => {
     })
 
     const dashboard = await readDashboard(container)
-    expect(dashboard.treasury.recordedUsdtMinor).toBe(70000)
-    expect(dashboard.treasury.freeUsdtMinor).toBe(30000)
-    expect(dashboard.treasury.availableUsdtMinor).toBe(70000)
+    expect(dashboard.treasury.recordedUsdtMilli).toBe(700000)
+    expect(dashboard.treasury.freeUsdtMilli).toBe(300000)
+    expect(dashboard.treasury.availableUsdtMilli).toBe(700000)
   })
 
   it("reads persisted P2P for the dashboard without calling p2pRate.read or appending history", async () => {
@@ -1462,37 +1485,17 @@ describe("readDashboard", () => {
     }
   })
 
-  it("exposes operations.mode from a settings fake seeded with operations:mode and liveReady", async () => {
-    const settings = {
-      get: async (key: string) => (key === "operations:mode" ? "live" : null),
-      set: async () => {},
-      delete: async () => {},
-      all: async () => ({}),
-    }
-    const container = fakeContainer({
-      settings,
-      operationsMode: () => readOperationsMode(settings, "sandbox"),
-      liveReady: true,
-    })
-
-    const dashboard = await readDashboard(container)
-    expect(dashboard.operations).toEqual({ mode: "live", liveReady: true })
-
-    const defaulted = await readDashboard(fakeContainer())
-    expect(defaulted.operations).toEqual({ mode: "sandbox", liveReady: false })
-  })
-
   it("computes projections with known sums", async () => {
     const container = fakeContainer({
       distributor: {
-        getBalance: async () => ({ balanceMinor: 70000 }),
+        getBalance: async () => ({ balanceMilli: 700000 }),
         checkPlayer: async () => ({ valid: true, name: "P" }),
         placeOrder: async () => ({ distributorOrderId: "d", status: "PENDING" }),
         getOrder: async () => ({ distributorOrderId: "d", status: "COMPLETED" }),
       },
       treasury: {
-        snapshot: async () => ({ usdtMinor: 70000, basisEgpMinor: 0, wacEgpMinor: 0 }),
-        recordFunding: async () => ({ id: "f", egpPaidMinor: 0, usdtMinor: 0, createdAt: "now" }),
+        snapshot: async () => ({ usdtMilli: 700000, basisEgpMinor: 0, wacEgpMinor: 0 }),
+        recordFunding: async () => ({ id: "f", egpPaidMinor: 0, usdtMilli: 0, createdAt: "now" }),
 
         consumeForOrder: async () => { throw new Error("unused") },
         reconcile: async () => { throw new Error("unused") },
@@ -1500,9 +1503,9 @@ describe("readDashboard", () => {
       coinSupply: { totalCoins: async () => 10 },
       consumptions: {
         append: async () => {},
-        totals: async () => ({ usdtMinor: 0, basisEgpMinor: 0 }),
+        totals: async () => ({ usdtMilli: 0, basisEgpMinor: 0 }),
         findByOrder: async () => null,
-        sumUsdtSince: async () => 1400,
+        sumUsdtSince: async () => 14000,
         listRecent: async () => [],
       },
       orders: {
@@ -1513,9 +1516,12 @@ describe("readDashboard", () => {
         findByToken: async () => placed,
         update: async () => {},
         listByClient: async () => [],
+        countByClient: async () => 0,
         findByDistributorOrderId: async () => null,
         listByStatus: async () => [],
+        listFailedUnrefundedCoinOrders: async () => [],
         sumCoinsChargedSince: async () => 70,
+        summarizeByClient: async () => ({ totalOrders: 0, totalPaidCoins: 0, monthlyPaidCoins: 0 }),
       },
       p2pRate: {
         read: async () => ({
@@ -1530,11 +1536,11 @@ describe("readDashboard", () => {
       settings: { get: async () => "true", set: async () => {}, delete: async () => {}, all: async () => ({}) },
     })
     const dashboard = await readDashboard(container)
-    // available = 70000 - 10*1 = 69990; avgDailyConsumption = 1400/7 = 200; runway = floor(69990/200)=349
+    // available = 699900 milli; avgDailyConsumption = 14000/7 = 2000 milli; runway = floor(699900/2000)=349
     expect(dashboard.projections.treasuryRunwayDays).toBe(349)
     // availableCoins = 69990; avgDailyCoins = 70/7 = 10; runway = floor(69990/10)=6999
     expect(dashboard.projections.coinRunwayDays).toBe(6999)
-    // availableUsdtEgpMinor = floor((69990 * 5200) / 100) = 3639480
+    // availableUsdtEgpMinor = floor((699900 * 5200) / 1000) = 3639480
     expect(dashboard.projections.availableUsdtEgpMinor).toBe(3639480)
   })
 
@@ -1551,7 +1557,7 @@ describe("readDashboard", () => {
       coinSupply: { totalCoins: async () => 50 },
       consumptions: {
         append: async () => {},
-        totals: async () => ({ usdtMinor: 0, basisEgpMinor: 0 }),
+        totals: async () => ({ usdtMilli: 0, basisEgpMinor: 0 }),
         findByOrder: async () => null,
         sumUsdtSince: async () => 700,
         listRecent: async () => [],
@@ -1564,9 +1570,12 @@ describe("readDashboard", () => {
         findByToken: async () => placed,
         update: async () => {},
         listByClient: async () => [],
+        countByClient: async () => 0,
         findByDistributorOrderId: async () => null,
         listByStatus: async () => [],
+        listFailedUnrefundedCoinOrders: async () => [],
         sumCoinsChargedSince: async () => 70,
+        summarizeByClient: async () => ({ totalOrders: 0, totalPaidCoins: 0, monthlyPaidCoins: 0 }),
       },
       p2pRate: {
         read: async () => ({
@@ -1589,12 +1598,12 @@ describe("users", () => {
     const container = fakeContainer({
       accounts: {
         list: async () => ({
-          rows: [{ id: "a1", clientId: "c1", email: "a@b.c", coinBalance: 5, createdAt: "2026" }],
+          rows: [{ id: "a1", clientId: "c1", username: "user1", email: "a@b.c", coinBalance: 5, createdAt: "2026" }],
           total: 1,
         }),
         findById: async () => null,
         findByEmail: async () => null,
-        create: async () => ({ id: "", clientId: "", email: "", passwordHash: "" }),
+        create: async () => ({ id: "", clientId: "", email: "", username: "", passwordHash: "" }),
         listPreferences: async () => ({}),
         setPreference: async () => {},
       },
@@ -1602,17 +1611,31 @@ describe("users", () => {
 
     const page = await listUsers(container, 0, 20)
     expect(page.rows[0].email).toBe("a@b.c")
+    expect(page.rows[0].username).toBe("user1")
     expect(page.rows[0].coinBalance).toBe(5)
     expect("clientType" in page.rows[0]).toBe(false)
   })
 
   it("reads a user with wallet, entries, and base VIP fields", async () => {
+    const placedWithAccount = order({
+      id: "o1",
+      token: "t1",
+      profileId: "p1",
+      client: client("c1"),
+      clientAccount: { id: "a1", username: "u1", email: "a@b.c" },
+      product: product({ id: "p1", distributorId: "d1", name: "86", cost: money(1000, "USD"), game: "mlbb" }),
+      player: player("1", "2"),
+      price: money(1200, "USD"),
+      status: "PAID",
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      markupBasisPoints: 0,
+    })
     const container = fakeContainer({
       accounts: {
         list: async () => ({ rows: [], total: 0 }),
-        findById: async () => ({ id: "a1", clientId: "c1", email: "a@b.c", passwordHash: "" }),
+        findById: async () => ({ id: "a1", clientId: "c1", email: "a@b.c", username: "u1", passwordHash: "" }),
         findByEmail: async () => null,
-        create: async () => ({ id: "", clientId: "", email: "", passwordHash: "" }),
+        create: async () => ({ id: "", clientId: "", email: "", username: "", passwordHash: "" }),
         listPreferences: async () => ({}),
         setPreference: async () => {},
       },
@@ -1620,25 +1643,31 @@ describe("users", () => {
         credit: async () => ({ clientId: "c1", coinBalance: 0 }),
         debit: async () => true,
         getOrCreate: async () => ({ clientId: "c1", coinBalance: 42 }),
-        listEntries: async () => [{ id: "e1", amount: 2, reason: "gift", createdAt: "2026" }],
+        listEntries: async () => [{ id: "e1", amount: 2, reason: "gift", reference: null, createdAt: "2026" }],
+        findEntryByReference: async () => null,
+        reverseDebit: async () => {},
       },
       activity: { sumQualifiedVolumeSince: async (clientId: string) => (clientId === "c1" ? 1200 : 0) },
       orders: {
-        listRecent: async () => [placed],
-        search: async () => ({ rows: [placed], total: 1 }),
+        listRecent: async () => [placedWithAccount],
+        search: async () => ({ rows: [placedWithAccount], total: 1 }),
         save: async () => {},
-        findById: async () => placed,
-        findByToken: async () => placed,
+        findById: async () => placedWithAccount,
+        findByToken: async () => placedWithAccount,
         update: async () => {},
-        listByClient: async () => [],
+        listByClient: async () => [placedWithAccount],
+        countByClient: async () => 1,
         findByDistributorOrderId: async () => null,
         listByStatus: async () => [],
         sumCoinsChargedSince: async () => 0,
+        summarizeByClient: async () => ({ totalOrders: 1, totalPaidCoins: 0, monthlyPaidCoins: 0 }),
+        listFailedUnrefundedCoinOrders: async () => [],
       },
     })
 
     const user = await readUser(container, "a1")
     expect(user?.account.email).toBe("a@b.c")
+    expect(user?.account.username).toBe("u1")
     expect("clientType" in (user ?? {})).toBe(false)
     expect(user?.wallet.coinBalance).toBe(42)
     expect(user?.entries[0].createdAt).toBe("2026")
@@ -1648,6 +1677,18 @@ describe("users", () => {
     )
     expect(user?.nextBreakpoint).toEqual({ coins: 5000, basisPoints: 1000 })
     expect(user?.override).toBeNull()
+    expect(user?.orders).toEqual([
+      {
+        token: "t1",
+        status: "PAID",
+        productName: "86",
+        game: "mlbb",
+        userId: "1",
+        serverId: "2",
+        price: money(1200, "USD"),
+        createdAt: "2026-01-01T00:00:00.000Z",
+      },
+    ])
   })
 
   it("reads VIP fields from the MLBB curve", async () => {
@@ -1660,9 +1701,9 @@ describe("users", () => {
     const container = fakeContainer({
       accounts: {
         list: async () => ({ rows: [], total: 0 }),
-        findById: async () => ({ id: "a1", clientId: "c1", email: "a@b.c", passwordHash: "" }),
+        findById: async () => ({ id: "a1", clientId: "c1", email: "a@b.c", username: "u1", passwordHash: "" }),
         findByEmail: async () => null,
-        create: async () => ({ id: "", clientId: "", email: "", passwordHash: "" }),
+        create: async () => ({ id: "", clientId: "", email: "", username: "", passwordHash: "" }),
         listPreferences: async () => ({}),
         setPreference: async () => {},
       },
@@ -1675,9 +1716,11 @@ describe("users", () => {
         findByToken: async () => placed,
         update: async () => {},
         listByClient: async () => [],
+        countByClient: async () => 0,
         findByDistributorOrderId: async () => null,
         listByStatus: async () => [],
         sumCoinsChargedSince: async () => 0,
+        summarizeByClient: async () => ({ totalOrders: 0, totalPaidCoins: 0, monthlyPaidCoins: 0 }), listFailedUnrefundedCoinOrders: async () => [],
       },
       settings: {
         get: async (key: string) => (key === "markup:vip:mlbb" ? curve : null),
@@ -1705,9 +1748,9 @@ describe("users", () => {
     const container = fakeContainer({
       accounts: {
         list: async () => ({ rows: [], total: 0 }),
-        findById: async () => ({ id: "a1", clientId: "c1", email: "a@b.c", passwordHash: "" }),
+        findById: async () => ({ id: "a1", clientId: "c1", email: "a@b.c", username: "u1", passwordHash: "" }),
         findByEmail: async () => null,
-        create: async () => ({ id: "", clientId: "", email: "", passwordHash: "" }),
+        create: async () => ({ id: "", clientId: "", email: "", username: "", passwordHash: "" }),
         listPreferences: async () => ({}),
         setPreference: async () => {},
       },
@@ -1720,9 +1763,11 @@ describe("users", () => {
         findByToken: async () => placed,
         update: async () => {},
         listByClient: async () => [],
+        countByClient: async () => 0,
         findByDistributorOrderId: async () => null,
         listByStatus: async () => [],
         sumCoinsChargedSince: async () => 0,
+        summarizeByClient: async () => ({ totalOrders: 0, totalPaidCoins: 0, monthlyPaidCoins: 0 }), listFailedUnrefundedCoinOrders: async () => [],
       },
       settings: {
         get: async (key: string) => {
@@ -1789,13 +1834,13 @@ describe("recordFunding", () => {
     const recordFundingFn = vi.fn(async () => ({
       id: "f1",
       egpPaidMinor: 10100,
-      usdtMinor: 200,
+      usdtMilli: 2000,
       createdAt: "now",
     }))
     const container = fakeContainer({
       treasury: {
         recordFunding: recordFundingFn,
-        snapshot: async () => ({ usdtMinor: 0, basisEgpMinor: 0, wacEgpMinor: 0 }),
+        snapshot: async () => ({ usdtMilli: 0, basisEgpMinor: 0, wacEgpMinor: 0 }),
         consumeForOrder: async () => {
           throw new Error("unused")
         },
@@ -1806,20 +1851,20 @@ describe("recordFunding", () => {
     })
     const result = await recordFunding(container, {
       egpPaidMinor: 10100,
-      usdtMinor: 200,
+      usdtMilli: 2000,
     })
     expect(result).toEqual({
       ok: true,
       funding: {
         id: "f1",
         egpPaidMinor: 10100,
-        usdtMinor: 200,
+        usdtMilli: 2000,
         createdAt: "now",
       },
     })
     expect(recordFundingFn).toHaveBeenCalledWith({
       egpPaidMinor: 10100,
-      usdtMinor: 200,
+      usdtMilli: 2000,
     })
   })
 
@@ -1830,7 +1875,7 @@ describe("recordFunding", () => {
     const container = fakeContainer({
       treasury: {
         recordFunding: recordFundingFn,
-        snapshot: async () => ({ usdtMinor: 0, basisEgpMinor: 0, wacEgpMinor: 0 }),
+        snapshot: async () => ({ usdtMilli: 0, basisEgpMinor: 0, wacEgpMinor: 0 }),
         consumeForOrder: async () => {
           throw new Error("unused")
         },
@@ -1841,28 +1886,28 @@ describe("recordFunding", () => {
     })
     const result = await recordFunding(container, {
       egpPaidMinor: 0,
-      usdtMinor: 200,
+      usdtMilli: 2000,
     })
     expect(result).toEqual({ ok: false, error: "invalid" })
   })
 
-  it("succeeds when usdtMinor is at or below free USDT", async () => {
+  it("succeeds when usdtMilli is at or below free USDT", async () => {
     const recordFundingFn = vi.fn(async () => ({
       id: "f1",
       egpPaidMinor: 10100,
-      usdtMinor: 600,
+      usdtMilli: 6000,
       createdAt: "now",
     }))
     const container = fakeContainer({
       distributor: {
-        getBalance: async () => ({ balanceMinor: 1000 }),
+        getBalance: async () => ({ balanceMilli: 10000 }),
         checkPlayer: async () => ({ valid: true, name: "P" }),
         placeOrder: async () => ({ distributorOrderId: "d", status: "PENDING" }),
         getOrder: async () => ({ distributorOrderId: "d", status: "COMPLETED" }),
       },
       treasury: {
         recordFunding: recordFundingFn,
-        snapshot: async () => ({ usdtMinor: 400, basisEgpMinor: 0, wacEgpMinor: 0 }),
+        snapshot: async () => ({ usdtMilli: 4000, basisEgpMinor: 0, wacEgpMinor: 0 }),
         consumeForOrder: async () => {
           throw new Error("unused")
         },
@@ -1873,29 +1918,29 @@ describe("recordFunding", () => {
     })
     const result = await recordFunding(container, {
       egpPaidMinor: 10100,
-      usdtMinor: 600,
+      usdtMilli: 6000,
     })
     expect(result.ok).toBe(true)
     expect(recordFundingFn).toHaveBeenCalledTimes(1)
   })
 
-  it("rejects with exceeds_free when usdtMinor is above free USDT and appends nothing", async () => {
+  it("rejects with exceeds_free when usdtMilli is above free USDT and appends nothing", async () => {
     const recordFundingFn = vi.fn(async () => ({
       id: "f1",
       egpPaidMinor: 10100,
-      usdtMinor: 601,
+      usdtMilli: 6010,
       createdAt: "now",
     }))
     const container = fakeContainer({
       distributor: {
-        getBalance: async () => ({ balanceMinor: 1000 }),
+        getBalance: async () => ({ balanceMilli: 10000 }),
         checkPlayer: async () => ({ valid: true, name: "P" }),
         placeOrder: async () => ({ distributorOrderId: "d", status: "PENDING" }),
         getOrder: async () => ({ distributorOrderId: "d", status: "COMPLETED" }),
       },
       treasury: {
         recordFunding: recordFundingFn,
-        snapshot: async () => ({ usdtMinor: 400, basisEgpMinor: 0, wacEgpMinor: 0 }),
+        snapshot: async () => ({ usdtMilli: 4000, basisEgpMinor: 0, wacEgpMinor: 0 }),
         consumeForOrder: async () => {
           throw new Error("unused")
         },
@@ -1906,7 +1951,7 @@ describe("recordFunding", () => {
     })
     const result = await recordFunding(container, {
       egpPaidMinor: 10100,
-      usdtMinor: 601,
+      usdtMilli: 6010,
     })
     expect(result).toEqual({ ok: false, error: "exceeds_free" })
     expect(recordFundingFn).not.toHaveBeenCalled()
@@ -1916,7 +1961,7 @@ describe("recordFunding", () => {
     const recordFundingFn = vi.fn(async () => ({
       id: "f1",
       egpPaidMinor: 10100,
-      usdtMinor: 200,
+      usdtMilli: 2000,
       createdAt: "now",
     }))
     const container = fakeContainer({
@@ -1930,7 +1975,7 @@ describe("recordFunding", () => {
       },
       treasury: {
         recordFunding: recordFundingFn,
-        snapshot: async () => ({ usdtMinor: 0, basisEgpMinor: 0, wacEgpMinor: 0 }),
+        snapshot: async () => ({ usdtMilli: 0, basisEgpMinor: 0, wacEgpMinor: 0 }),
         consumeForOrder: async () => {
           throw new Error("unused")
         },
@@ -1941,7 +1986,7 @@ describe("recordFunding", () => {
     })
     const result = await recordFunding(container, {
       egpPaidMinor: 10100,
-      usdtMinor: 200,
+      usdtMilli: 2000,
     })
     expect(result).toEqual({ ok: false, error: "exceeds_free" })
     expect(recordFundingFn).not.toHaveBeenCalled()
@@ -1995,18 +2040,18 @@ describe("markup override actions", () => {
 describe("rollbackFunding", () => {
   it("success calls remove and returns {ok:true}", async () => {
     const remove = vi.fn(async () => true)
-    const lot = { id: "f1", egpPaidMinor: 5000, usdtMinor: 100, createdAt: "2026-01-01T00:00:00.000Z" }
+    const lot = { id: "f1", egpPaidMinor: 5000, usdtMilli: 1000, createdAt: "2026-01-01T00:00:00.000Z" }
     const container = fakeContainer({
       fundings: {
         append: async () => {},
-        totals: async () => ({ usdtMinor: 0, basisEgpMinor: 0 }),
+        totals: async () => ({ usdtMilli: 0, basisEgpMinor: 0 }),
         listRecent: async () => [],
         findById: async () => lot,
         remove,
       },
       treasury: {
-        snapshot: async () => ({ usdtMinor: 1000, basisEgpMinor: 50000, wacEgpMinor: 5000 }),
-        recordFunding: async () => ({ id: "f", egpPaidMinor: 0, usdtMinor: 0, createdAt: "now" }),
+        snapshot: async () => ({ usdtMilli: 10000, basisEgpMinor: 50000, wacEgpMinor: 5000 }),
+        recordFunding: async () => ({ id: "f", egpPaidMinor: 0, usdtMilli: 0, createdAt: "now" }),
         consumeForOrder: async () => { throw new Error("unused") },
         reconcile: async () => { throw new Error("unused") },
       } as any,
@@ -2022,7 +2067,7 @@ describe("rollbackFunding", () => {
     const container = fakeContainer({
       fundings: {
         append: async () => {},
-        totals: async () => ({ usdtMinor: 0, basisEgpMinor: 0 }),
+        totals: async () => ({ usdtMilli: 0, basisEgpMinor: 0 }),
         listRecent: async () => [],
         findById: async () => null,
         remove,
@@ -2039,18 +2084,18 @@ describe("rollbackFunding", () => {
 
   it("recordedAfter < reserved -> locked, no remove", async () => {
     const remove = vi.fn(async () => true)
-    const lot = { id: "f1", egpPaidMinor: 5000, usdtMinor: 900, createdAt: "2026-01-01T00:00:00.000Z" }
+    const lot = { id: "f1", egpPaidMinor: 5000, usdtMilli: 9000, createdAt: "2026-01-01T00:00:00.000Z" }
     const container = fakeContainer({
       fundings: {
         append: async () => {},
-        totals: async () => ({ usdtMinor: 0, basisEgpMinor: 0 }),
+        totals: async () => ({ usdtMilli: 0, basisEgpMinor: 0 }),
         listRecent: async () => [],
         findById: async () => lot,
         remove,
       },
       treasury: {
-        snapshot: async () => ({ usdtMinor: 1000, basisEgpMinor: 50000, wacEgpMinor: 5000 }),
-        recordFunding: async () => ({ id: "f", egpPaidMinor: 0, usdtMinor: 0, createdAt: "now" }),
+        snapshot: async () => ({ usdtMilli: 10000, basisEgpMinor: 50000, wacEgpMinor: 5000 }),
+        recordFunding: async () => ({ id: "f", egpPaidMinor: 0, usdtMilli: 0, createdAt: "now" }),
         consumeForOrder: async () => { throw new Error("unused") },
         reconcile: async () => { throw new Error("unused") },
       } as any,
@@ -2065,18 +2110,18 @@ describe("rollbackFunding", () => {
 
   it("basisAfter < 0 -> locked", async () => {
     const remove = vi.fn(async () => true)
-    const lot = { id: "f1", egpPaidMinor: 60000, usdtMinor: 100, createdAt: "2026-01-01T00:00:00.000Z" }
+    const lot = { id: "f1", egpPaidMinor: 60000, usdtMilli: 1000, createdAt: "2026-01-01T00:00:00.000Z" }
     const container = fakeContainer({
       fundings: {
         append: async () => {},
-        totals: async () => ({ usdtMinor: 0, basisEgpMinor: 0 }),
+        totals: async () => ({ usdtMilli: 0, basisEgpMinor: 0 }),
         listRecent: async () => [],
         findById: async () => lot,
         remove,
       },
       treasury: {
-        snapshot: async () => ({ usdtMinor: 1000, basisEgpMinor: 50000, wacEgpMinor: 5000 }),
-        recordFunding: async () => ({ id: "f", egpPaidMinor: 0, usdtMinor: 0, createdAt: "now" }),
+        snapshot: async () => ({ usdtMilli: 10000, basisEgpMinor: 50000, wacEgpMinor: 5000 }),
+        recordFunding: async () => ({ id: "f", egpPaidMinor: 0, usdtMilli: 0, createdAt: "now" }),
         consumeForOrder: async () => { throw new Error("unused") },
         reconcile: async () => { throw new Error("unused") },
       } as any,
@@ -2085,5 +2130,108 @@ describe("rollbackFunding", () => {
 
     await expect(rollbackFunding(container, "f1")).resolves.toEqual({ ok: false, error: "locked" })
     expect(remove).not.toHaveBeenCalled()
+  })
+})
+
+describe("achievements", () => {
+  const sampleInput = {
+    title: "First",
+    description: "Do one thing",
+    icon: "star",
+    color: "gold",
+    type: "TOTAL_ORDERS" as const,
+    target: 1,
+    active: true,
+    sortOrder: 0,
+  }
+
+  it("lists achievements", async () => {
+    const listAll = vi.fn(async () => [
+      {
+        id: "a1",
+        title: "First",
+        description: "Do one thing",
+        icon: "star",
+        color: "gold",
+        type: "TOTAL_ORDERS" as const,
+        target: 1,
+        active: true,
+        sortOrder: 0,
+      },
+    ])
+    const container = fakeContainer({
+      achievements: {
+        listAll,
+        listActive: async () => [],
+        create: async (input) => input as any,
+        update: async (_id, input) => ({ id: _id, ...input } as any),
+        remove: async () => {},
+        listProgress: async () => [],
+        upsertProgress: async () => {},
+      },
+    })
+
+    await expect(listAchievements(container)).resolves.toEqual([
+      {
+        id: "a1",
+        title: "First",
+        description: "Do one thing",
+        icon: "star",
+        color: "gold",
+        type: "TOTAL_ORDERS",
+        target: 1,
+        active: true,
+        sortOrder: 0,
+      },
+    ])
+    expect(listAll).toHaveBeenCalled()
+  })
+
+  it("creates an achievement", async () => {
+    const create = vi.fn(async (input) => input as any)
+    const container = fakeContainer({
+      achievements: {
+        listAll: async () => [],
+        listActive: async () => [],
+        create,
+        update: async (_id, input) => ({ id: _id, ...input } as any),
+        remove: async () => {},
+        listProgress: async () => [],
+        upsertProgress: async () => {},
+      },
+    })
+
+    const result = await createAchievement(container, sampleInput, () => "new-id")
+    expect(result).toEqual({ id: "new-id", ...sampleInput })
+    expect(create).toHaveBeenCalledWith({ id: "new-id", ...sampleInput })
+  })
+
+  it("rejects invalid target on create", async () => {
+    const container = fakeContainer()
+    await expect(createAchievement(container, { ...sampleInput, target: 0 }, () => "id")).rejects.toThrow(RangeError)
+    await expect(createAchievement(container, { ...sampleInput, target: -1 }, () => "id")).rejects.toThrow(RangeError)
+    await expect(createAchievement(container, { ...sampleInput, target: 1.5 }, () => "id")).rejects.toThrow(RangeError)
+  })
+
+  it("updates and removes an achievement", async () => {
+    const update = vi.fn(async (id, input) => ({ id, ...input } as any))
+    const remove = vi.fn(async () => {})
+    const container = fakeContainer({
+      achievements: {
+        listAll: async () => [],
+        listActive: async () => [],
+        create: async (input) => input as any,
+        update,
+        remove,
+        listProgress: async () => [],
+        upsertProgress: async () => {},
+      },
+    })
+
+    await expect(updateAchievement(container, "a1", sampleInput)).resolves.toEqual({ id: "a1", ...sampleInput })
+    expect(update).toHaveBeenCalledWith("a1", sampleInput)
+
+    await expect(removeAchievement(container, "a1")).resolves.toBeUndefined()
+    expect(remove).toHaveBeenCalledWith("a1")
   })
 })

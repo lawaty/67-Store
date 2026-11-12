@@ -2,7 +2,7 @@
  * Confirms a payment by provider reference, treating a repeated status update as a no-op and only transitioning an awaiting order to paid after acceptance.
  */
 import { PaymentRepository } from "../ports/payment-repository"
-import { PaymentProviderName, PaymentStatus } from "../domain/payment"
+import { PaymentProviderName, PaymentStatus, canTransition } from "../domain/payment"
 import { OrderRepository } from "@/ordering"
 import { Order, apply, attachPayment } from "@/ordering"
 
@@ -15,7 +15,7 @@ export function createConfirmPayment(deps: {
     if (payment === null) {
       return null
     }
-    if (payment.status === input.status) {
+    if (!canTransition(payment.status, input.status)) {
       return null
     }
     await deps.payments.markStatus(input.provider, input.reference, input.status)

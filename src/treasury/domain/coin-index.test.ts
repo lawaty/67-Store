@@ -6,9 +6,9 @@ import {
   coinValueMinor,
   coinValueUsd,
   coinsForUsdMinor,
-  coinsForUsdtMinor,
+  coinsForUsdtMilli,
   nextCoinIndex,
-  reservedUsdtMinor,
+  reservedUsdtMilli,
 } from "./coin-index"
 
 describe("coin-index", () => {
@@ -37,10 +37,10 @@ describe("coin-index", () => {
     expect(coinsForUsdMinor(250, 100)).toBe(3)
   })
 
-  it("computes reserved USDT minor and coins from USDT minor", () => {
-    expect(reservedUsdtMinor(3, 105)).toBe(315)
-    expect(coinsForUsdtMinor(315, 105)).toBe(3)
-    expect(coinsForUsdtMinor(314, 105)).toBe(2)
+  it("computes reserved USDT milli and coins from USDT milli", () => {
+    expect(reservedUsdtMilli(3, 105)).toBe(3150)
+    expect(coinsForUsdtMilli(3150, 105)).toBe(3)
+    expect(coinsForUsdtMilli(3140, 105)).toBe(2)
   })
 
   it("returns no-op for empty changes", () => {
@@ -104,8 +104,8 @@ describe("coin-index", () => {
     expect(() => coinValueUsd(0)).toThrow(RangeError)
     expect(() => coinsForUsdMinor(-1, 100)).toThrow(RangeError)
     expect(() => coinsForUsdMinor(100, 0)).toThrow(RangeError)
-    expect(() => reservedUsdtMinor(-1, 100)).toThrow(RangeError)
-    expect(() => coinsForUsdtMinor(100, -1)).toThrow(RangeError)
+    expect(() => reservedUsdtMilli(-1, 100)).toThrow(RangeError)
+    expect(() => coinsForUsdtMilli(1000, -1)).toThrow(RangeError)
     expect(() => nextCoinIndex(0, [], 500)).toThrow(RangeError)
     expect(() => nextCoinIndex(1_000_000, [], -1)).toThrow(RangeError)
     expect(() => nextCoinIndex(1_000_000, [], 10_001)).toThrow(RangeError)

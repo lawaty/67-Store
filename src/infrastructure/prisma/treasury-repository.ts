@@ -2,7 +2,8 @@
  * Prisma adapters for `FundingRepository`, `ConsumptionRepository`, and
  * `ReconciliationRepository`, persisting treasury records.
  */
-import { PrismaClient } from "@prisma/client"
+import { Prisma, PrismaClient } from "@prisma/client"
+import type { TreasuryRepositories } from "@/treasury"
 import { FundingRepository } from "@/treasury"
 import { ConsumptionRepository } from "@/treasury"
 import { ReconciliationRepository } from "@/treasury"
@@ -22,46 +23,56 @@ function assertNonNegativeSafeInteger(n: number): void {
   }
 }
 
+type PrismaMinor = bigint | number
+
+function toMinor(value: PrismaMinor): number {
+  const n = typeof value === "bigint" ? Number(value) : value
+  if (!Number.isSafeInteger(n)) {
+    throw new RangeError()
+  }
+  return n
+}
+
+function toMinorOrZero(value: PrismaMinor | null | undefined): number {
+  return value === null || value === undefined ? 0 : toMinor(value)
+}
+
 function toFunding(row: {
   id: string
-  egpPaidMinor: number
-  usdtMinor: number
+  egpPaidMinor: PrismaMinor
+  usdtMilli: PrismaMinor
   createdAt: Date
 }): Funding {
   return funding({
     id: row.id,
-    egpPaidMinor: row.egpPaidMinor,
-    usdtMinor: row.usdtMinor,
+    egpPaidMinor: toMinor(row.egpPaidMinor),
+    usdtMilli: toMinor(row.usdtMilli),
     createdAt: row.createdAt.toISOString(),
   })
 }
 
-export function createPrismaTreasuryRepositories(db: PrismaClient): {
-  fundings: FundingRepository
-  consumptions: ConsumptionRepository
-  reconciliations: ReconciliationRepository
-} {
+export function createPrismaTreasuryRepositories(db: PrismaClient | Prisma.TransactionClient): TreasuryRepositories {
   return {
     fundings: {
       append: async (lot) => {
         await db.funding.create({
           data: {
             id: lot.id,
-            egpPaidMinor: lot.egpPaidMinor,
-            usdtMinor: lot.usdtMinor,
+            egpPaidMinor: BigInt(lot.egpPaidMinor),
+            usdtMilli: BigInt(lot.usdtMilli),
             createdAt: new Date(lot.createdAt),
           },
         })
       },
       totals: async () => {
         const agg = await db.funding.aggregate({
-          _sum: { usdtMinor: true, egpPaidMinor: true },
+          _sum: { usdtMilli: true, egpPaidMinor: true },
         })
-        const usdtMinor = agg._sum.usdtMinor ?? 0
-        const basisEgpMinor = agg._sum.egpPaidMinor ?? 0
-        assertNonNegativeSafeInteger(usdtMinor)
+        const usdtMilli = toMinorOrZero(agg._sum.usdtMilli)
+        const basisEgpMinor = toMinorOrZero(agg._sum.egpPaidMinor)
+        assertNonNegativeSafeInteger(usdtMilli)
         assertNonNegativeSafeInteger(basisEgpMinor)
-        return { usdtMinor, basisEgpMinor }
+        return { usdtMilli, basisEgpMinor }
       },
       listRecent: async (limit: number) => {
         assertPositiveSafeInteger(limit)
@@ -89,9 +100,9 @@ export function createPrismaTreasuryRepositories(db: PrismaClient): {
           data: {
             id: consumption.id,
             orderId: consumption.orderId,
-            usdtMinor: consumption.usdtMinor,
-            basisEgpMinor: consumption.basisEgpMinor,
-            wacEgpMinor: consumption.wacEgpMinor,
+            usdtMilli: BigInt(consumption.usdtMilli),
+            basisEgpMinor: BigInt(consumption.basisEgpMinor),
+            wacEgpMinor: BigInt(consumption.wacEgpMinor),
             createdAt: new Date(consumption.createdAt),
           },
         })
@@ -104,33 +115,34 @@ export function createPrismaTreasuryRepositories(db: PrismaClient): {
         return treasuryConsumption({
           id: row.id,
           orderId: row.orderId,
-          usdtMinor: row.usdtMinor,
-          basisEgpMinor: row.basisEgpMinor,
-          wacEgpMinor: row.wacEgpMinor,
+          usdtMilli: toMinor(row.usdtMilli),
+          basisEgpMinor: toMinor(row.basisEgpMinor),
+          wacEgpMinor: toMinor(row.wacEgpMinor),
           createdAt: row.createdAt.toISOString(),
         })
       },
       totals: async () => {
         const agg = await db.treasuryConsumption.aggregate({
-          _sum: { usdtMinor: true, basisEgpMinor: true },
+          _sum: { usdtMilli: true, basisEgpMinor: true },
         })
-        const usdtMinor = agg._sum.usdtMinor ?? 0
-        const basisEgpMinor = agg._sum.basisEgpMinor ?? 0
-        assertNonNegativeSafeInteger(usdtMinor)
+        const usdtMilli = toMinorOrZero(agg._sum.usdtMilli)
+        const basisEgpMinor = toMinorOrZero(agg._sum.basisEgpMinor)
+        assertNonNegativeSafeInteger(usdtMilli)
         assertNonNegativeSafeInteger(basisEgpMinor)
-        return { usdtMinor, basisEgpMinor }
+        return { usdtMilli, basisEgpMinor }
       },
       sumUsdtSince: async (since: string) => {
         const agg = await db.treasuryConsumption.aggregate({
-          _sum: { usdtMinor: true },
+          _sum: { usdtMilli: true },
           where: { createdAt: { gte: new Date(since) } },
         })
-        const sum = agg._sum.usdtMinor
+        const sum = agg._sum.usdtMilli
         if (sum === null || sum === undefined) {
           return 0
         }
-        assertNonNegativeSafeInteger(sum)
-        return sum
+        const value = toMinor(sum)
+        assertNonNegativeSafeInteger(value)
+        return value
       },
       listRecent: async (limit: number) => {
         const rows = await db.treasuryConsumption.findMany({ orderBy: { createdAt: "desc" }, take: limit })
@@ -138,9 +150,9 @@ export function createPrismaTreasuryRepositories(db: PrismaClient): {
           treasuryConsumption({
             id: row.id,
             orderId: row.orderId,
-            usdtMinor: row.usdtMinor,
-            basisEgpMinor: row.basisEgpMinor,
-            wacEgpMinor: row.wacEgpMinor,
+            usdtMilli: toMinor(row.usdtMilli),
+            basisEgpMinor: toMinor(row.basisEgpMinor),
+            wacEgpMinor: toMinor(row.wacEgpMinor),
             createdAt: row.createdAt.toISOString(),
           }),
         )
@@ -151,9 +163,9 @@ export function createPrismaTreasuryRepositories(db: PrismaClient): {
         await db.reconciliation.create({
           data: {
             id: record.id,
-            expectedUsdtMinor: record.expectedUsdtMinor,
-            supplierUsdtMinor: record.supplierUsdtMinor,
-            gapUsdtMinor: record.gapUsdtMinor,
+            expectedUsdtMilli: BigInt(record.expectedUsdtMilli),
+            supplierUsdtMilli: BigInt(record.supplierUsdtMilli),
+            gapUsdtMilli: BigInt(record.gapUsdtMilli),
             status: record.status,
             createdAt: new Date(record.createdAt),
           },
@@ -166,13 +178,28 @@ export function createPrismaTreasuryRepositories(db: PrismaClient): {
         }
         return Object.freeze({
           id: row.id,
-          expectedUsdtMinor: row.expectedUsdtMinor,
-          supplierUsdtMinor: row.supplierUsdtMinor,
-          gapUsdtMinor: row.gapUsdtMinor,
+          expectedUsdtMilli: toMinor(row.expectedUsdtMilli),
+          supplierUsdtMilli: toMinor(row.supplierUsdtMilli),
+          gapUsdtMilli: toMinor(row.gapUsdtMilli),
           status: row.status as any,
           createdAt: row.createdAt.toISOString(),
         }) as ReconciliationRecord
       },
     },
+  }
+}
+
+export function createPrismaTreasuryUnitOfWork(db: PrismaClient): {
+  runInTransaction: <T>(fn: (repos: TreasuryRepositories) => Promise<T>) => Promise<T>
+} {
+  return {
+    runInTransaction: (fn) =>
+      db.$transaction(async (tx) => {
+        // Serialize treasury mutations: lock every funding row for the
+        // duration of the transaction. Consumptions all read the funding
+        // totals, so they queue here instead of both passing the guard.
+        await tx.$queryRawUnsafe("SELECT id FROM `Funding` FOR UPDATE")
+        return fn(createPrismaTreasuryRepositories(tx))
+      }),
   }
 }

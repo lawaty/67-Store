@@ -7,14 +7,14 @@ describe("payment", () => {
     const p = payment({
       id: "p1",
       orderId: "o1",
-      provider: "INSTAPAY",
+      provider: "PAYMOB",
       providerReference: "ref1",
       amount: money(1000, "USD"),
       status: "PENDING",
     })
     expect(p.id).toBe("p1")
     expect(p.orderId).toBe("o1")
-    expect(p.provider).toBe("INSTAPAY")
+    expect(p.provider).toBe("PAYMOB")
     expect(p.providerReference).toBe("ref1")
     expect(p.amount).toEqual(money(1000, "USD"))
     expect(p.status).toBe("PENDING")
@@ -39,7 +39,7 @@ describe("payment", () => {
       payment({
         id: "   ",
         orderId: "o1",
-        provider: "INSTAPAY",
+        provider: "PAYMOB",
         providerReference: "ref1",
         amount: money(1, "USD"),
         status: "PENDING",
@@ -50,7 +50,7 @@ describe("payment", () => {
       payment({
         id: "p1",
         orderId: "   ",
-        provider: "INSTAPAY",
+        provider: "PAYMOB",
         providerReference: "ref1",
         amount: money(1, "USD"),
         status: "PENDING",
@@ -61,7 +61,7 @@ describe("payment", () => {
       payment({
         id: "p1",
         orderId: "o1",
-        provider: "INSTAPAY",
+        provider: "PAYMOB",
         providerReference: "   ",
         amount: money(1, "USD"),
         status: "PENDING",
@@ -73,7 +73,7 @@ describe("payment", () => {
     const p = payment({
       id: "p1",
       orderId: "o1",
-      provider: "INSTAPAY",
+      provider: "PAYMOB",
       providerReference: "ref1",
       amount: money(1000, "USD"),
       status: "PENDING",

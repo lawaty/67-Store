@@ -4,7 +4,7 @@ import { money } from "../../shared/money"
 import { product } from "@/catalogue"
 import { player } from "./player"
 import { client } from "@/accounts"
-import { order, apply, attachPayment, attachDistributorOrder } from "./order"
+import { order, apply, attachPayment, attachDistributorOrder, restateCost } from "./order"
 import { InvalidTransition } from "./order-status"
 
 function makeFixture() {
@@ -18,38 +18,49 @@ function makeFixture() {
 describe("order", () => {
   test("order(...) starts at CREATED with both references null.", () => {
     const { c, p, pl, price } = makeFixture()
-    const o = order({ id: "o1", token: "tok_1", client: c, product: p, player: pl, price ,
+    const o = order({ id: "o1", token: "tok_1", profileId: "prof1", client: c, product: p, player: pl, price ,
     markupBasisPoints: 0,
   })
     expect(o.status).toBe("CREATED")
     expect(o.paymentReference).toBe(null)
     expect(o.distributorOrderId).toBe(null)
     expect(o.coinValueMinor).toBe(null)
+    expect(o.costUsdtMilli).toBe(null)
   })
 
   test("order(...) throws RangeError for a blank id.", () => {
     const { c, p, pl, price } = makeFixture()
-    expect(() => order({ id: "", token: "tok_1", client: c, product: p, player: pl, price ,
+    expect(() => order({ id: "", token: "tok_1", profileId: "prof1", client: c, product: p, player: pl, price ,
     markupBasisPoints: 0,
   })).toThrow(RangeError)
-    expect(() => order({ id: "   ", token: "tok_1", client: c, product: p, player: pl, price ,
+    expect(() => order({ id: "   ", token: "tok_1", profileId: "prof1", client: c, product: p, player: pl, price ,
     markupBasisPoints: 0,
   })).toThrow(RangeError)
   })
 
   test("order(...) throws RangeError for a blank token.", () => {
     const { c, p, pl, price } = makeFixture()
-    expect(() => order({ id: "o1", token: "", client: c, product: p, player: pl, price ,
+    expect(() => order({ id: "o1", token: "", profileId: "prof1", client: c, product: p, player: pl, price ,
     markupBasisPoints: 0,
   })).toThrow(RangeError)
-    expect(() => order({ id: "o1", token: "   ", client: c, product: p, player: pl, price ,
+    expect(() => order({ id: "o1", token: "   ", profileId: "prof1", client: c, product: p, player: pl, price ,
+    markupBasisPoints: 0,
+  })).toThrow(RangeError)
+  })
+
+  test("order(...) throws RangeError for a blank profileId.", () => {
+    const { c, p, pl, price } = makeFixture()
+    expect(() => order({ id: "o1", token: "tok_1", profileId: "", client: c, product: p, player: pl, price ,
+    markupBasisPoints: 0,
+  })).toThrow(RangeError)
+    expect(() => order({ id: "o1", token: "tok_1", profileId: "   ", client: c, product: p, player: pl, price ,
     markupBasisPoints: 0,
   })).toThrow(RangeError)
   })
 
   test("The happy path: request payment, confirm payment, attach the payment reference, start fulfilment, attach the distributor order id, then delivery succeeded — each step returns the expected status and keeps the earlier fields.", () => {
     const { c, p, pl, price } = makeFixture()
-    const o0 = order({ id: "o2", token: "tok_1", client: c, product: p, player: pl, price ,
+    const o0 = order({ id: "o2", token: "tok_1", profileId: "prof1", client: c, product: p, player: pl, price ,
     markupBasisPoints: 0,
   })
     expect(o0.id).toBe("o2")
@@ -100,7 +111,7 @@ describe("order", () => {
 
   test("apply never mutates its input: the original still has its old status after the call.", () => {
     const { c, p, pl, price } = makeFixture()
-    const o0 = order({ id: "o3", token: "tok_1", client: c, product: p, player: pl, price ,
+    const o0 = order({ id: "o3", token: "tok_1", profileId: "prof1", client: c, product: p, player: pl, price ,
     markupBasisPoints: 0,
   })
     expect(o0.status).toBe("CREATED")
@@ -111,7 +122,7 @@ describe("order", () => {
 
   test("attachPayment throws InvalidTransition when the order is CREATED or PAID.", () => {
     const { c, p, pl, price } = makeFixture()
-    const oCreated = order({ id: "o4", token: "tok_1", client: c, product: p, player: pl, price ,
+    const oCreated = order({ id: "o4", token: "tok_1", profileId: "prof1", client: c, product: p, player: pl, price ,
     markupBasisPoints: 0,
   })
     expect(() => attachPayment(oCreated, "ref")).toThrow(InvalidTransition)
@@ -124,7 +135,7 @@ describe("order", () => {
 
   test("attachDistributorOrder throws InvalidTransition when the order is PAID or DELIVERED.", () => {
     const { c, p, pl, price } = makeFixture()
-    const oCreated = order({ id: "o5", token: "tok_1", client: c, product: p, player: pl, price ,
+    const oCreated = order({ id: "o5", token: "tok_1", profileId: "prof1", client: c, product: p, player: pl, price ,
     markupBasisPoints: 0,
   })
     const oPaid = apply(apply(oCreated, "REQUEST_PAYMENT"), "PAYMENT_CONFIRMED")
@@ -139,7 +150,7 @@ describe("order", () => {
 
   test("attachPayment and attachDistributorOrder throw RangeError for a blank reference.", () => {
     const { c, p, pl, price } = makeFixture()
-    const oAwaiting = apply(order({ id: "o6", token: "tok_1", client: c, product: p, player: pl, price ,
+    const oAwaiting = apply(order({ id: "o6", token: "tok_1", profileId: "prof1", client: c, product: p, player: pl, price ,
     markupBasisPoints: 0,
   }), "REQUEST_PAYMENT")
     expect(() => attachPayment(oAwaiting, "")).toThrow(RangeError)
@@ -153,7 +164,7 @@ describe("order", () => {
 
   test("Every returned order is frozen.", () => {
     const { c, p, pl, price } = makeFixture()
-    const o0 = order({ id: "o7", token: "tok_1", client: c, product: p, player: pl, price ,
+    const o0 = order({ id: "o7", token: "tok_1", profileId: "prof1", client: c, product: p, player: pl, price ,
     markupBasisPoints: 0,
   })
     expect(Object.isFrozen(o0)).toBe(true)
@@ -170,48 +181,60 @@ describe("order", () => {
 
   test("order() defaults wacEgpMinor, cogsEgpMinor, tradingMarginMinor and coinValueMinor to null.", () => {
     const { c, p, pl, price } = makeFixture()
-    const o = order({ id: "oX", token: "tok_1", client: c, product: p, player: pl, price ,
+    const o = order({ id: "oX", token: "tok_1", profileId: "prof1", client: c, product: p, player: pl, price ,
     markupBasisPoints: 0,
   })
     expect(o.wacEgpMinor).toBeNull()
     expect(o.cogsEgpMinor).toBeNull()
     expect(o.tradingMarginMinor).toBeNull()
     expect(o.coinValueMinor).toBeNull()
+    expect(o.costUsdtMilli).toBeNull()
+  })
+
+  test("restateCost stores costUsdtMilli and rejects a negative value.", () => {
+    const { c, p, pl, price } = makeFixture()
+    const o = order({ id: "oR", token: "tok_r", profileId: "prof1", client: c, product: p, player: pl, price, costMinor: 100, costUsdtMilli: null, markupBasisPoints: 0 })
+    const next = restateCost(o, { costMinor: 17, costUsdtMilli: 165, cogsEgpMinor: 8, tradingMarginMinor: 9983 })
+    expect(next.costMinor).toBe(17)
+    expect(next.costUsdtMilli).toBe(165)
+    expect(next.cogsEgpMinor).toBe(8)
+    expect(next.tradingMarginMinor).toBe(9983)
+    expect(() => restateCost(o, { costMinor: 17, costUsdtMilli: -1, cogsEgpMinor: 8, tradingMarginMinor: 9983 })).toThrow(RangeError)
   })
 
   test("order() accepts a positive safe coinValueMinor and rejects null, zero, negative, non-integer and non-safe values.", () => {
     const { c, p, pl, price } = makeFixture()
-    expect(order({ id: "oX", token: "tok_1", client: c, product: p, player: pl, price, coinValueMinor: 100, markupBasisPoints: 0 }).coinValueMinor).toBe(100)
-    expect(order({ id: "oX", token: "tok_1", client: c, product: p, player: pl, price, coinValueMinor: null, markupBasisPoints: 0 }).coinValueMinor).toBeNull()
-    expect(() => order({ id: "oX", token: "tok_1", client: c, product: p, player: pl, price, coinValueMinor: 0, markupBasisPoints: 0 })).toThrow(RangeError)
-    expect(() => order({ id: "oX", token: "tok_1", client: c, product: p, player: pl, price, coinValueMinor: -1, markupBasisPoints: 0 })).toThrow(RangeError)
-    expect(() => order({ id: "oX", token: "tok_1", client: c, product: p, player: pl, price, coinValueMinor: 1.5, markupBasisPoints: 0 })).toThrow(RangeError)
-    expect(() => order({ id: "oX", token: "tok_1", client: c, product: p, player: pl, price, coinValueMinor: Number.NaN, markupBasisPoints: 0 })).toThrow(RangeError)
+    expect(order({ id: "oX", token: "tok_1", profileId: "prof1", client: c, product: p, player: pl, price, coinValueMinor: 100, markupBasisPoints: 0 }).coinValueMinor).toBe(100)
+    expect(order({ id: "oX", token: "tok_1", profileId: "prof1", client: c, product: p, player: pl, price, coinValueMinor: null, markupBasisPoints: 0 }).coinValueMinor).toBeNull()
+    expect(() => order({ id: "oX", token: "tok_1", profileId: "prof1", client: c, product: p, player: pl, price, coinValueMinor: 0, markupBasisPoints: 0 })).toThrow(RangeError)
+    expect(() => order({ id: "oX", token: "tok_1", profileId: "prof1", client: c, product: p, player: pl, price, coinValueMinor: -1, markupBasisPoints: 0 })).toThrow(RangeError)
+    expect(() => order({ id: "oX", token: "tok_1", profileId: "prof1", client: c, product: p, player: pl, price, coinValueMinor: 1.5, markupBasisPoints: 0 })).toThrow(RangeError)
+    expect(() => order({ id: "oX", token: "tok_1", profileId: "prof1", client: c, product: p, player: pl, price, coinValueMinor: Number.NaN, markupBasisPoints: 0 })).toThrow(RangeError)
   })
 
   test("order() rejects a negative value for the snapshot fields.", () => {
     const { c, p, pl, price } = makeFixture()
-    expect(() => order({ id: "oX", token: "tok_1", client: c, product: p, player: pl, price, wacEgpMinor: -1 ,
+    expect(() => order({ id: "oX", token: "tok_1", profileId: "prof1", client: c, product: p, player: pl, price, wacEgpMinor: -1 ,
     markupBasisPoints: 0,
   })).toThrow(RangeError)
-    expect(() => order({ id: "oX", token: "tok_1", client: c, product: p, player: pl, price, cogsEgpMinor: -1 ,
+    expect(() => order({ id: "oX", token: "tok_1", profileId: "prof1", client: c, product: p, player: pl, price, cogsEgpMinor: -1 ,
     markupBasisPoints: 0,
   })).toThrow(RangeError)
-    expect(() => order({ id: "oX", token: "tok_1", client: c, product: p, player: pl, price, tradingMarginMinor: -1 ,
+    expect(() => order({ id: "oX", token: "tok_1", profileId: "prof1", client: c, product: p, player: pl, price, tradingMarginMinor: -1 ,
     markupBasisPoints: 0,
   })).toThrow(RangeError)
   })
 
   test("order() rejects a negative or non-integer markupBasisPoints.", () => {
     const { c, p, pl, price } = makeFixture()
-    expect(() => order({ id: "oX", token: "tok_1", client: c, product: p, player: pl, price, markupBasisPoints: -1 })).toThrow(RangeError)
-    expect(() => order({ id: "oX", token: "tok_1", client: c, product: p, player: pl, price, markupBasisPoints: 1.5 })).toThrow(RangeError)
-    expect(() => order({ id: "oX", token: "tok_1", client: c, product: p, player: pl, price, markupBasisPoints: NaN as unknown as number })).toThrow(RangeError)
+    expect(() => order({ id: "oX", token: "tok_1", profileId: "prof1", client: c, product: p, player: pl, price, markupBasisPoints: -1 })).toThrow(RangeError)
+    expect(() => order({ id: "oX", token: "tok_1", profileId: "prof1", client: c, product: p, player: pl, price, markupBasisPoints: 1.5 })).toThrow(RangeError)
+    expect(() => order({ id: "oX", token: "tok_1", profileId: "prof1", client: c, product: p, player: pl, price, markupBasisPoints: NaN as unknown as number })).toThrow(RangeError)
   })
 
   test("markupBasisPoints is preserved through transitions and attachments; historical reads may be null.", () => {
     const { c, p, pl, price } = makeFixture()
-    const o0 = order({ id: "oM", token: "tok_m", client: c, product: p, player: pl, price, markupBasisPoints: 1500 })
+    const o0 = order({ id: "oM", token: "tok_m", profileId: "prof1", client: c, product: p, player: pl, price, markupBasisPoints: 1500 })
     expect(o0.markupBasisPoints).toBe(1500)
     const o1 = attachPayment(apply(o0, "REQUEST_PAYMENT"), "pay_m")
     expect(o1.markupBasisPoints).toBe(1500)
@@ -220,13 +243,13 @@ describe("order", () => {
     expect(o3.markupBasisPoints).toBe(1500)
     const o4 = apply(o3, "DELIVERY_SUCCEEDED")
     expect(o4.markupBasisPoints).toBe(1500)
-    const legacy = order({ id: "oL", token: "tok_l", client: c, product: p, player: pl, price, markupBasisPoints: null })
+    const legacy = order({ id: "oL", token: "tok_l", profileId: "prof1", client: c, product: p, player: pl, price, markupBasisPoints: null })
     expect(legacy.markupBasisPoints).toBeNull()
   })
 
   test("coinValueMinor is preserved through transitions and attachments; legacy orders remain null.", () => {
     const { c, p, pl, price } = makeFixture()
-    const o0 = order({ id: "oC", token: "tok_c", client: c, product: p, player: pl, price, coinValueMinor: 100, markupBasisPoints: 1500 })
+    const o0 = order({ id: "oC", token: "tok_c", profileId: "prof1", client: c, product: p, player: pl, price, coinValueMinor: 100, markupBasisPoints: 1500 })
     expect(o0.coinValueMinor).toBe(100)
     const o1 = attachPayment(apply(o0, "REQUEST_PAYMENT"), "pay_c")
     expect(o1.coinValueMinor).toBe(100)
@@ -235,8 +258,75 @@ describe("order", () => {
     expect(o3.coinValueMinor).toBe(100)
     const o4 = apply(o3, "DELIVERY_SUCCEEDED")
     expect(o4.coinValueMinor).toBe(100)
-    const legacy = order({ id: "oCL", token: "tok_cl", client: c, product: p, player: pl, price, markupBasisPoints: 0 })
+    const legacy = order({ id: "oCL", token: "tok_cl", profileId: "prof1", client: c, product: p, player: pl, price, markupBasisPoints: 0 })
     expect(legacy.coinValueMinor).toBeNull()
+  })
+
+  test("factory stores termsVersion and termsAcceptedAt when provided.", () => {
+    const { c, p, pl, price } = makeFixture()
+    const o = order({
+      id: "oT",
+      token: "tok_t",
+      profileId: "prof1",
+      client: c,
+      product: p,
+      player: pl,
+      price,
+      markupBasisPoints: 0,
+      termsVersion: "  v1  ",
+      termsAcceptedAt: "2026-01-02T03:04:05.000Z",
+    })
+    expect(o.termsVersion).toBe("v1")
+    expect(o.termsAcceptedAt).toBe("2026-01-02T03:04:05.000Z")
+  })
+
+  test("missing or empty consent values become null.", () => {
+    const { c, p, pl, price } = makeFixture()
+    const o = order({
+      id: "oT2",
+      token: "tok_t2",
+      profileId: "prof1",
+      client: c,
+      product: p,
+      player: pl,
+      price,
+      markupBasisPoints: 0,
+      termsVersion: "   ",
+      termsAcceptedAt: "",
+    })
+    expect(o.termsVersion).toBeNull()
+    expect(o.termsAcceptedAt).toBeNull()
+    const o2 = order({ id: "oT3", token: "tok_t3", profileId: "prof1", client: c, product: p, player: pl, price, markupBasisPoints: 0 })
+    expect(o2.termsVersion).toBeNull()
+    expect(o2.termsAcceptedAt).toBeNull()
+  })
+
+  test("factory throws RangeError for an invalid termsAcceptedAt timestamp.", () => {
+    const { c, p, pl, price } = makeFixture()
+    expect(() =>
+      order({
+        id: "oT4",
+        token: "tok_t4",
+        profileId: "prof1",
+        client: c,
+        product: p,
+        player: pl,
+        price,
+        markupBasisPoints: 0,
+        termsAcceptedAt: "not-a-date",
+      })
+    ).toThrow(RangeError)
+  })
+
+  test("an order created without consent still has null after attachPayment/apply.", () => {
+    const { c, p, pl, price } = makeFixture()
+    const o0 = order({ id: "oT5", token: "tok_t5", profileId: "prof1", client: c, product: p, player: pl, price, markupBasisPoints: 0 })
+    const o1 = attachPayment(apply(o0, "REQUEST_PAYMENT"), "pay_t")
+    expect(o1.termsVersion).toBeNull()
+    expect(o1.termsAcceptedAt).toBeNull()
+    const o2 = apply(o1, "PAYMENT_CONFIRMED")
+    expect(o2.termsVersion).toBeNull()
+    expect(o2.termsAcceptedAt).toBeNull()
   })
 
   test("Property: apply with REQUEST_PAYMENT on a CREATED order always yields AWAITING_PAYMENT and preserves id, client, product, player and price by reference.", () => {
@@ -246,7 +336,7 @@ describe("order", () => {
         const p = product({ id: "p1", distributorId: "d1", name: "Topup", cost: money(10000, "USD"), game: "mlbb" })
         const pl = player("u1", "s1")
         const price = money(10000, "USD")
-        const o = order({ id: sid, token: "tok_1", client: c, product: p, player: pl, price ,
+        const o = order({ id: sid, token: "tok_1", profileId: "prof1", client: c, product: p, player: pl, price ,
     markupBasisPoints: 0,
   })
         const o2 = apply(o, "REQUEST_PAYMENT")

@@ -14,7 +14,7 @@ As a Client buying Coins, I want a Deposit rejected when it would issue more Coi
 - [05 — Payments](../05-payments.md)
 
 ## Acceptance criteria
-- Given recorded USDT is 1,000 and coins outstanding are 900 at 1 cent (0.01 USDT) per coin
+- Given recorded USDT is 10,000 milli-USDT and coins outstanding are 900 at 1 cent per coin (reserved 9,000 milli-USDT)
   When a Client requests a Deposit issuing 150 Coins
   Then the Deposit is rejected, no Coins are issued, and no Payment is taken
 - Given the Deposit issues at most the available USDT

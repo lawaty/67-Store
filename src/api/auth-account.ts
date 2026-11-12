@@ -17,6 +17,7 @@ export type Credentials = {
 }
 
 export type RegisterInput = Credentials & {
+  readonly username: string
   readonly playerUserId: string
   readonly playerServerId: string
   readonly locale: string
@@ -24,7 +25,7 @@ export type RegisterInput = Credentials & {
 
 export type RegisterOutcome =
   | { readonly ok: true; readonly result: AuthResultDto }
-  | { readonly ok: false; readonly error: "email" | "password" }
+  | { readonly ok: false; readonly error: "email" | "password" | "invalid_username" | "username_taken" }
 
 export function issueSession(
   session: { readonly accountId: string; readonly clientId: string },
@@ -60,9 +61,14 @@ export async function register(
       accounts: c.accounts,
       clients: c.clients,
       newId: deps.newId,
-    })({ email: input.email, password: input.password })
+    })({ email: input.email, password: input.password, username: input.username })
   } catch (error) {
-    if (error instanceof AccountError) return { ok: false, error: "email" }
+    if (error instanceof AccountError) {
+      const message = error.message
+      if (message === "invalid_username") return { ok: false, error: "invalid_username" }
+      if (message === "username_taken") return { ok: false, error: "username_taken" }
+      return { ok: false, error: "email" }
+    }
     if (error instanceof RangeError) return { ok: false, error: "password" }
     throw error
   }
@@ -71,8 +77,8 @@ export async function register(
     try {
       await c.gamingProfiles.add({
         id: deps.newId(),
+        clientId: created.clientId,
         accountId: created.accountId,
-        label: input.locale === "en" ? "My profile" : "بروفايلي",
         userId: input.playerUserId,
         serverId: input.playerServerId,
         game: "mlbb",

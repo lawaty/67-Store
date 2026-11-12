@@ -1,7 +1,7 @@
 "use client"
 /**
  * Compact coin-purchase dialog. Records a manual deposit in major units;
- * Instapay and Crypto gateways are not live yet.
+ * Paymob and Crypto gateways are not live yet.
  */
 import { useRef } from "react"
 import { Icon } from "@/app/icons"
@@ -60,7 +60,7 @@ export function PurchaseModal() {
             </div>
           </div>
           <p className="hint mt-3">
-            <Icon name="shield" size={14} /> تسجيل يدوي؛ بوابات Instapay وCrypto مش شغالة لسه.
+            <Icon name="shield" size={14} /> تسجيل يدوي؛ بوابات بيموب وCrypto مش شغالة لسه.
           </p>
           <SubmitButton className="btn btn-primary btn-block mt-4">تسجيل الشراء</SubmitButton>
         </form>

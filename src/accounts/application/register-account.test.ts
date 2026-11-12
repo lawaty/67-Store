@@ -27,8 +27,8 @@ class InMemoryAccountRepository implements AccountRepository {
   async list() {
     return { rows: [], total: 0 }
   }
-  async create(input: { id: string; clientId: string; email: string; passwordHash: string }) {
-    const account: ClientAccount = { id: input.id, clientId: input.clientId, email: input.email, passwordHash: input.passwordHash }
+  async create(input: { id: string; clientId: string; email: string; username: string; passwordHash: string }) {
+    const account: ClientAccount = { id: input.id, clientId: input.clientId, email: input.email, username: input.username, passwordHash: input.passwordHash }
     this.accounts.push(account)
     return account
   }
@@ -47,21 +47,23 @@ describe("register-account", () => {
     const accounts = new InMemoryAccountRepository()
     let n = 0
     const register = createRegisterAccount({ accounts, clients, newId: () => `id${++n}` })
-    const result = await register({ email: "a@b.com", password: "password123" })
+    const result = await register({ email: "a@b.com", password: "password123", username: "user_1" })
     expect(result.accountId).toBeTruthy()
     expect(result.clientId).toBeTruthy()
     expect(clients.saved.length).toBe(1)
     expect(clients.saved[0].id).toBeTruthy()
     expect(accounts.accounts.length).toBe(1)
+    expect(accounts.accounts[0].username).toBe("user_1")
   })
 
-  test("normalizes the email to lower case and trims it", async () => {
+  test("normalizes the email to lower case and trims it, trims username", async () => {
     const clients = new InMemoryClientRepository()
     const accounts = new InMemoryAccountRepository()
     let n = 0
     const register = createRegisterAccount({ accounts, clients, newId: () => `id${++n}` })
-    await register({ email: "  A@B.COM  ", password: "password123" })
+    await register({ email: "  A@B.COM  ", password: "password123", username: "  user_1  " })
     expect(accounts.accounts[0].email).toBe("a@b.com")
+    expect(accounts.accounts[0].username).toBe("user_1")
   })
 
   test("rejects an invalid email, creating nothing", async () => {
@@ -69,7 +71,7 @@ describe("register-account", () => {
     const accounts = new InMemoryAccountRepository()
     let n = 0
     const register = createRegisterAccount({ accounts, clients, newId: () => `id${++n}` })
-    await expect(register({ email: "not-an-email", password: "password123" })).rejects.toThrow("A valid email is required")
+    await expect(register({ email: "not-an-email", password: "password123", username: "user_1" })).rejects.toThrow("A valid email is required")
     expect(clients.saved.length).toBe(0)
     expect(accounts.accounts.length).toBe(0)
   })
@@ -79,12 +81,23 @@ describe("register-account", () => {
     const accounts = new InMemoryAccountRepository()
     let n = 0
     const register = createRegisterAccount({ accounts, clients, newId: () => `id${++n}` })
-    await register({ email: "a@b.com", password: "password123" })
+    await register({ email: "a@b.com", password: "password123", username: "user_1" })
     const beforeClients = clients.saved.length
     const beforeAccounts = accounts.accounts.length
-    await expect(register({ email: "a@b.com", password: "password123" })).rejects.toThrow("Email already registered")
+    await expect(register({ email: "a@b.com", password: "password123", username: "user_2" })).rejects.toThrow("Email already registered")
     expect(clients.saved.length).toBe(beforeClients)
     expect(accounts.accounts.length).toBe(beforeAccounts)
+  })
+
+  test("rejects an invalid username", async () => {
+    const clients = new InMemoryClientRepository()
+    const accounts = new InMemoryAccountRepository()
+    let n = 0
+    const register = createRegisterAccount({ accounts, clients, newId: () => `id${++n}` })
+    await expect(register({ email: "a@b.com", password: "password123", username: "ab" })).rejects.toThrow("invalid_username")
+    await expect(register({ email: "a@b.com", password: "password123", username: "bad-name" })).rejects.toThrow("invalid_username")
+    expect(clients.saved.length).toBe(0)
+    expect(accounts.accounts.length).toBe(0)
   })
 
   test("a password shorter than 8 characters rejects with RangeError and creates no client", async () => {
@@ -92,7 +105,7 @@ describe("register-account", () => {
     const accounts = new InMemoryAccountRepository()
     let n = 0
     const register = createRegisterAccount({ accounts, clients, newId: () => `id${++n}` })
-    await expect(register({ email: "a@b.com", password: "short" })).rejects.toBeInstanceOf(RangeError)
+    await expect(register({ email: "a@b.com", password: "short", username: "user_1" })).rejects.toBeInstanceOf(RangeError)
     expect(clients.saved.length).toBe(0)
     expect(accounts.accounts.length).toBe(0)
   })
@@ -102,7 +115,7 @@ describe("register-account", () => {
     const accounts = new InMemoryAccountRepository()
     let n = 0
     const register = createRegisterAccount({ accounts, clients, newId: () => `id${++n}` })
-    await register({ email: "a@b.com", password: "password123" })
+    await register({ email: "a@b.com", password: "password123", username: "user_1" })
     const stored = accounts.accounts[0].passwordHash
     expect(stored).not.toBe("password123")
     expect(await verifyPassword("password123", stored)).toBe(true)

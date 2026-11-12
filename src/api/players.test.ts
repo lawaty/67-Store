@@ -12,7 +12,7 @@ function fakeContainer(overrides: Partial<Container> = {}): Container {
       getOrder: async () => {
         throw new Error("not used")
       },
-      getBalance: async () => ({ balanceMinor: 0 }),
+      getBalance: async () => ({ balanceMilli: 0 }),
     },
     ...overrides,
   } as unknown as Container
@@ -30,7 +30,7 @@ describe("checkPlayer", () => {
         getOrder: async () => {
           throw new Error("not used")
         },
-        getBalance: async () => ({ balanceMinor: 0 }),
+        getBalance: async () => ({ balanceMilli: 0 }),
       },
     })
 
@@ -53,7 +53,7 @@ describe("checkPlayer", () => {
         getOrder: async () => {
           throw new Error("not used")
         },
-        getBalance: async () => ({ balanceMinor: 0 }),
+        getBalance: async () => ({ balanceMilli: 0 }),
       },
     })
 
@@ -73,7 +73,7 @@ describe("checkPlayer", () => {
         getOrder: async () => {
           throw new Error("not used")
         },
-        getBalance: async () => ({ balanceMinor: 0 }),
+        getBalance: async () => ({ balanceMilli: 0 }),
       },
     })
 
@@ -94,7 +94,7 @@ describe("checkPlayer", () => {
         getOrder: async () => {
           throw new Error("not used")
         },
-        getBalance: async () => ({ balanceMinor: 0 }),
+        getBalance: async () => ({ balanceMilli: 0 }),
       },
     })
 
@@ -116,7 +116,7 @@ describe("checkPlayer", () => {
         getOrder: async () => {
           throw new Error("not used")
         },
-        getBalance: async () => ({ balanceMinor: 0 }),
+        getBalance: async () => ({ balanceMilli: 0 }),
       },
     })
 
@@ -136,7 +136,7 @@ describe("checkPlayer", () => {
         getOrder: async () => {
           throw new Error("not used")
         },
-        getBalance: async () => ({ balanceMinor: 0 }),
+        getBalance: async () => ({ balanceMilli: 0 }),
       },
     })
 

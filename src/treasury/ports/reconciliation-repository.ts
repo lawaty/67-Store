@@ -5,11 +5,15 @@
 import { ReconciliationStatus } from "../domain/reconciliation"
 export type ReconciliationRecord = {
   readonly id: string
-  readonly expectedUsdtMinor: number
-  readonly supplierUsdtMinor: number
-  readonly gapUsdtMinor: number
+  readonly expectedUsdtMilli: number
+  readonly supplierUsdtMilli: number
+  readonly gapUsdtMilli: number
   readonly status: ReconciliationStatus
   readonly createdAt: string
+}
+export interface ReconciliationRepository {
+  append(record: ReconciliationRecord): Promise<void>
+  latest(): Promise<ReconciliationRecord | null>
 }
 export interface ReconciliationRepository {
   append(record: ReconciliationRecord): Promise<void>

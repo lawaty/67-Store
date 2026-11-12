@@ -14,20 +14,20 @@ export async function POST(request: Request): Promise<Response> {
   if (body === null) return failure("bad_request", 400)
 
   const egpPaidMinor = Number(body.egpPaidMinor)
-  const usdtMinor = Number(body.usdtMinor)
+  const usdtMilli = Number(body.usdtMilli)
 
   if (
     !Number.isSafeInteger(egpPaidMinor) ||
-    !Number.isSafeInteger(usdtMinor) ||
+    !Number.isSafeInteger(usdtMilli) ||
     egpPaidMinor <= 0 ||
-    usdtMinor <= 0
+    usdtMilli <= 0
   ) {
     return failure("bad_request", 400)
   }
 
   const result = await recordFunding(getContainer(), {
     egpPaidMinor,
-    usdtMinor,
+    usdtMilli,
   })
 
   return result.ok ? json({ ok: true }) : failure(result.error, 400)

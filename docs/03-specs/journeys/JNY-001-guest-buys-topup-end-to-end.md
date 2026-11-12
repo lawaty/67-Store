@@ -16,8 +16,8 @@ A [Client](../../01-domain/03-glossary.md) acting as a guest (without a Client a
 
 ## Main flow
 
-1. The Client picks a Product and a Payment method in the catalogue: InstaPay, crypto or wallet Coins.
-2. The player step shows the Product, the total and a method switch between InstaPay, crypto and Coins.
+1. The Client picks a Product and a Payment method in the catalogue: Paymob (EGP) or wallet Coins (crypto is deferred and not offered in the UI).
+2. The player step shows the Product, the total and the selected method.
 3. A guest enters the Player id and server id without saving a Gaming profile.
 4. The server validates the Player id and server id against the Distributor and returns the in-game name; a valid check stores the in-game name on the Order.
 5. An optional promo code is entered and validated before the Order is created.
@@ -28,7 +28,6 @@ A [Client](../../01-domain/03-glossary.md) acting as a guest (without a Client a
 
 ## Alternate flows
 
-- **Crypto instead of InstaPay**: the Client chooses the crypto Payment method; the same Player, pricing and Payment verification steps apply.
 - **Coins from the Wallet**: the Client chooses wallet Coins; the Wallet is debited by the Coin price and the Order is marked paid without a provider redirect.
 - **Invalid Player id**: validation fails and the flow stops with an Arabic error before any Order or Payment is created.
 - **Provider or Fulfilment failure**: the Order ends `FAILED`, the Client is refunded once, and the reason is shown.
@@ -42,7 +41,7 @@ A [Client](../../01-domain/03-glossary.md) acting as a guest (without a Client a
 
 ## Stories
 
-- [STF-001](../stories/STF-001-buy-topup-with-instapay.md)
+- [STF-001](../stories/STF-001-buy-topup-with-paymob.md)
 - [STF-002](../stories/STF-002-reject-invalid-player.md)
 - [STF-003](../stories/STF-003-apply-promo-code.md)
 

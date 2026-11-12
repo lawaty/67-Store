@@ -3,6 +3,7 @@
  * converting distributor USD amounts to minor-unit Money values.
  */
 import { money } from "../../shared/money"
+import { USDT_MILLI_PER_USDT } from "../../shared/usdt"
 import { product, Product } from "@/catalogue"
 
 export type CatalogueItem = { readonly id: number; readonly name: string; readonly amount: number }
@@ -12,6 +13,16 @@ export function usdToMinor(amount: number): number {
     throw new RangeError()
   }
   return Math.ceil(Number((amount * 100).toFixed(6)))
+}
+
+/**
+ * Balance/treasury amounts use milli-USD; prices continue to use `usdToMinor` (cents).
+ */
+export function usdToMilli(amount: number): number {
+  if (!Number.isFinite(amount) || amount < 0) {
+    throw new RangeError()
+  }
+  return Math.round(Number((amount * USDT_MILLI_PER_USDT).toFixed(6)))
 }
 
 export function mapCatalogue(game: string, payload: unknown): Product[] {

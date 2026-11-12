@@ -12,9 +12,15 @@ export interface OrderRepository {
   update(order: Order): Promise<void>
   listRecent(limit: number): Promise<Order[]>
   listByClient(clientId: string, limit: number): Promise<Order[]>
+  countByClient(clientId: string, since: string | null): Promise<number>
   findByDistributorOrderId(distributorOrderId: string): Promise<Order | null>
-  listByStatus(status: OrderStatus, limit: number): Promise<Order[]>
+  listByStatus(status: OrderStatus, limit: number, skip?: number): Promise<Order[]>
+  listFailedUnrefundedCoinOrders(limit: number): Promise<Order[]>
   search(input: { status: OrderStatus | null; from: string | null; to: string | null; q: string | null; skip: number; take: number }): Promise<{ rows: Order[]; total: number }>
   sumCoinsChargedSince(since: string): Promise<number>
+  summarizeByClient(
+    clientId: string,
+    monthStart: string,
+  ): Promise<{ totalOrders: number; totalPaidCoins: number; monthlyPaidCoins: number }>
 }
 

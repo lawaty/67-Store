@@ -4,7 +4,7 @@
 import type { ReactNode } from "react"
 
 export const metadata = {
-  title: "Management",
+  title: "الإدارة",
   robots: { index: false, follow: false },
 }
 

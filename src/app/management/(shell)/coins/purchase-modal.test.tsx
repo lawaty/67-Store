@@ -37,7 +37,7 @@ describe("PurchaseModal", () => {
     expect(amount?.required).toBe(true)
 
     expect(container.textContent).toContain("تسجيل يدوي")
-    expect(container.textContent).toContain("Instapay")
+    expect(container.textContent).toContain("بيموب")
     expect(container.textContent).toContain("Crypto")
     expect(container.textContent).toContain("مش شغالة لسه")
   })

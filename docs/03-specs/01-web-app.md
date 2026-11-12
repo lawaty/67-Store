@@ -51,8 +51,8 @@ See the state diagram in [07 Orders](../01-domain/07-orders.md#lifecycle).
 
 | Route | Purpose |
 | --- | --- |
-| `/` | Catalogue: the MLBB product grid. Each product offers three actions: pay in EGP through InstaPay, pay in USDT through the crypto rail, and pay with wallet coins. |
-| `/mlbb/[product]/[method]` | Player step for a product and a method already chosen in the catalogue, where the product is the denomination slug and the method is `instapay`, `crypto` or `coins`. Shows the price, lists the account's saved gaming profiles, accepts a new player id and server id, and offers to save them. |
+| `/` | Catalogue: the MLBB product grid. Each product offers actions to pay in EGP through Paymob and to pay with wallet coins (crypto is deferred and not offered in the UI). |
+| `/mlbb/[product]/[method]` | Player step for a product and a method already chosen in the catalogue, where the product is the denomination slug and the method is `paymob`, `crypto` or `coins`. Shows the price, lists the account's saved gaming profiles, accepts a new player id and server id, and offers to save them. |
 | `/account/login` | Sign in to a client account. |
 | `/account/register` | Create a client account. |
 | `/account/profiles` | Add, list and remove gaming profiles for the signed-in client. A new profile's player id and server id are checked with the distributor first, and the returned in-game name is stored on the profile. |
@@ -75,7 +75,7 @@ Admin behaviour is specified in [06 Back Office](06-back-office.md). The storefr
 
 ## Acceptance
 
-- Every product offers three working payment choices.
+- Every available product offers working payment choices for the offered methods (Paymob and wallet coins).
 - Paying with coins debits the wallet by the coin price and leaves the order paid.
 - An invalid player id never reaches payment.
 - A valid player check stores the in-game name on the order and it is shown on the order page.

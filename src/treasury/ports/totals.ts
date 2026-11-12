@@ -3,6 +3,6 @@
  * the treasury snapshot.
  */
 export type TreasuryTotals = {
-  readonly usdtMinor: number
+  readonly usdtMilli: number
   readonly basisEgpMinor: number
 }

@@ -4,7 +4,7 @@
 import { Money } from "@/shared/money"
 
 export type PaymentStatus = "PENDING" | "PAID" | "FAILED" | "EXPIRED"
-export type PaymentProviderName = "INSTAPAY" | "CRYPTO" | "COINS"
+export type PaymentProviderName = "PAYMOB" | "CRYPTO" | "COINS"
 export type Payment = {
   readonly id: string
   readonly orderId: string
@@ -42,4 +42,17 @@ export function payment(input: {
     amount: input.amount,
     status: input.status,
   })
+}
+
+/**
+ * Payment status transition policy. PENDING may settle into any terminal state.
+ * An EXPIRED or FAILED payment may still settle as PAID, because a provider can
+ * capture a payment after we gave up on it. Once PAID, a payment is terminal: a
+ * later FAILED/EXPIRED/PAID event must never move it.
+ */
+export function canTransition(from: PaymentStatus, to: PaymentStatus): boolean {
+  if (from === to) return false
+  if (from === "PAID") return false
+  if (from === "PENDING") return true
+  return to === "PAID"
 }

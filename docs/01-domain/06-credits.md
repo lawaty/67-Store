@@ -10,7 +10,7 @@ Coins, the wallet, deposits and deposit rates, the pre-funding rule, coverage, t
 
 ## Coin
 
-A [coin (67 Coins)](03-glossary.md) is a whole integer of prepaid credit. Its value is the [coin value](04-pricing-markup.md#coin-index): `index` USD minor, initially 1 cent (0.01 USDT). A coin is a claim on catalogue purchasing power, not a claim on USDT.
+A [coin (67 Coins)](03-glossary.md) is a whole integer of prepaid credit. Its value is the [coin value](04-pricing-markup.md#coin-index): `index` USD cents (USD minor units), initially 1 cent (0.01 USDT). A coin is a claim on catalogue purchasing power, not a claim on USDT.
 
 ## Wallet
 
@@ -34,8 +34,8 @@ A fee in basis points is applied to the resolved rate and rounded half-up. Inval
 A deposit is accepted only when the new coins' reserved USDT does not exceed available USDT:
 
 ```
-reserved USDT = coins outstanding × coin value
-available USDT = recorded USDT − reserved USDT
+reserved USDT = coins outstanding × coin value (cents) × 10   (milli-USDT)
+available USDT = recorded USDT − reserved USDT                (milli-USDT)
 ```
 
 Only recorded treasury USDT counts. The live distributor balance does not make coins sellable on its own. Only the balance above reserved USDT, the **[available USDT](03-glossary.md)**, may be withdrawn, and the software enforces it.
@@ -47,7 +47,7 @@ coverage  = live distributor USDT balance ÷ reserved USDT
 available USDT = recorded USDT − reserved USDT
 ```
 
-Coins outstanding is the sum of every wallet balance, valued at the current coin value. Coverage is an internal invariant check, not a dashboard metric: the pre-funding guard keeps reserved USDT at or below recorded USDT, and reconciliation alerts on any live-balance gap. Buying and deposits use available USDT; coverage uses the live balance.
+Coins outstanding is the sum of every wallet balance. Treasury quantities and reserved/available USDT are in milli-USDT (coin value stays in USD cents, reserved as `coins × coin value (cents) × 10`). Coverage is an internal invariant check, not a dashboard metric: the pre-funding guard keeps reserved USDT at or below recorded USDT, and reconciliation alerts on any live-balance gap. Buying and deposits use available USDT; coverage uses the live balance.
 
 ## FX result
 

@@ -8,7 +8,8 @@ import type { TreasuryDashboardDto } from "@/api/contracts"
 import { FundingModal } from "./funding-modal"
 import { RollbackFundingButton } from "./rollback-funding-button"
 import { Icon } from "@/app/icons"
-import { formatMinor } from "@/frontend/format"
+import { formatMinor, formatUsdtMilli } from "@/frontend/format"
+import { USDT_MILLI_PER_USDT } from "@/shared/usdt"
 import { inferredEgpPerUsdtMinor } from "@/shared/funding"
 
 export const dynamic = "force-dynamic"
@@ -18,9 +19,9 @@ type OperationRow =
       key: string
       createdAt: string
       type: "تمويل"
-      reference: string
-      usdtInMinor: number
-      usdtOutMinor: null
+      id: string
+      usdtInMilli: number
+      usdtOutMilli: null
       egpMinor: number
       wacEgpMinor: number
     }
@@ -28,9 +29,8 @@ type OperationRow =
       key: string
       createdAt: string
       type: "خصم طلب"
-      reference: string
-      usdtInMinor: null
-      usdtOutMinor: number
+      usdtInMilli: null
+      usdtOutMilli: number
       egpMinor: number
       wacEgpMinor: number
     }
@@ -49,11 +49,11 @@ export default async function TreasuryPage({
         key: `funding-${f.id}`,
         createdAt: f.createdAt,
         type: "تمويل",
-        reference: f.id,
-        usdtInMinor: f.usdtMinor,
-        usdtOutMinor: null,
+        id: f.id,
+        usdtInMilli: f.usdtMilli,
+        usdtOutMilli: null,
         egpMinor: f.egpPaidMinor,
-        wacEgpMinor: inferredEgpPerUsdtMinor(f.egpPaidMinor, f.usdtMinor),
+        wacEgpMinor: inferredEgpPerUsdtMinor(f.egpPaidMinor, f.usdtMilli),
       }),
     ),
     ...data.consumptions.map(
@@ -61,20 +61,19 @@ export default async function TreasuryPage({
         key: `consumption-${c.id}`,
         createdAt: c.createdAt,
         type: "خصم طلب",
-        reference: c.orderId,
-        usdtInMinor: null,
-        usdtOutMinor: c.usdtMinor,
+        usdtInMilli: null,
+        usdtOutMilli: c.usdtMilli,
         egpMinor: c.basisEgpMinor,
         wacEgpMinor: c.wacEgpMinor,
       }),
     ),
   ].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
 
-  const defaultUsdtMinor = data.freeUsdtMinor
+  const defaultUsdtMilli = data.freeUsdtMilli
   const maxP2pEgpPerUsdtMinor = data.p2pMaxEgpPerUsdtMinor
   const defaultEgpPaidMinor =
-    maxP2pEgpPerUsdtMinor !== null && defaultUsdtMinor > 0
-      ? Math.round((maxP2pEgpPerUsdtMinor * defaultUsdtMinor) / 100)
+    maxP2pEgpPerUsdtMinor !== null && defaultUsdtMilli > 0
+      ? Math.round((maxP2pEgpPerUsdtMinor * defaultUsdtMilli) / USDT_MILLI_PER_USDT)
       : 0
 
   return (
@@ -85,7 +84,7 @@ export default async function TreasuryPage({
           <h1 className="display-2 mt-3">عمليات الخزينة</h1>
           <p className="lede mt-2 text-sm">تمويل الخزينة وسجل حركة USDT.</p>
         </div>
-        <FundingModal defaultEgpPaidMinor={defaultEgpPaidMinor} defaultUsdtMinor={defaultUsdtMinor} maxUsdtMinor={data.freeUsdtMinor} />
+        <FundingModal defaultEgpPaidMinor={defaultEgpPaidMinor} defaultUsdtMilli={defaultUsdtMilli} maxUsdtMilli={data.freeUsdtMilli} />
       </header>
 
       {params.error === "free" ? (
@@ -118,7 +117,6 @@ export default async function TreasuryPage({
                   <tr>
                     <th>التاريخ</th>
                     <th>النوع</th>
-                    <th>المرجع</th>
                     <th>USDT داخل</th>
                     <th>USDT خارج</th>
                     <th>EGP</th>
@@ -131,26 +129,25 @@ export default async function TreasuryPage({
                     <tr key={row.key}>
                       <td><span className="num text-sm text-muted">{row.createdAt}</span></td>
                       <td><span className="hud-chip">{row.type}</span></td>
-                      <td><span className="num text-sm" dir="ltr">{row.reference}</span></td>
                       <td>
-                        {row.usdtInMinor === null ? (
+                        {row.usdtInMilli === null ? (
                           <span className="text-muted">—</span>
                         ) : (
-                          <span className="num font-bold text-jade" dir="ltr">{formatMinor(row.usdtInMinor, "USD")}</span>
+                          <span className="num font-bold text-jade" dir="ltr">{formatUsdtMilli(row.usdtInMilli)}</span>
                         )}
                       </td>
                       <td>
-                        {row.usdtOutMinor === null ? (
+                        {row.usdtOutMilli === null ? (
                           <span className="text-muted">—</span>
                         ) : (
-                          <span className="num font-bold" dir="ltr">{formatMinor(row.usdtOutMinor, "USD")}</span>
+                          <span className="num font-bold" dir="ltr">{formatUsdtMilli(row.usdtOutMilli)}</span>
                         )}
                       </td>
                       <td><span className="num" dir="ltr">{formatMinor(row.egpMinor, "EGP")}</span></td>
                       <td><span className="num" dir="ltr">{formatMinor(row.wacEgpMinor, "EGP")}</span></td>
                       <td>
                         {row.type === "تمويل" ? (
-                          <RollbackFundingButton id={row.reference} usdtMinor={row.usdtInMinor} />
+                          <RollbackFundingButton id={row.id} usdtMilli={row.usdtInMilli} />
                         ) : (
                           <span className="text-muted">—</span>
                         )}
@@ -167,18 +164,17 @@ export default async function TreasuryPage({
                     <span className="hud-chip">{row.type}</span>
                     <span className="num text-xs text-muted">{row.createdAt}</span>
                   </div>
-                  <p className="num mt-2 text-sm text-muted" dir="ltr">{row.reference}</p>
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     <div>
                       <p className="card-kicker">USDT داخل</p>
                       <p className="num mt-1 text-sm font-bold text-jade">
-                        {row.usdtInMinor === null ? "—" : formatMinor(row.usdtInMinor, "USD")}
+                        {row.usdtInMilli === null ? "—" : formatUsdtMilli(row.usdtInMilli)}
                       </p>
                     </div>
                     <div>
                       <p className="card-kicker">USDT خارج</p>
                       <p className="num mt-1 text-sm font-bold text-ink">
-                        {row.usdtOutMinor === null ? "—" : formatMinor(row.usdtOutMinor, "USD")}
+                        {row.usdtOutMilli === null ? "—" : formatUsdtMilli(row.usdtOutMilli)}
                       </p>
                     </div>
                     <div><p className="card-kicker">EGP</p><p className="num mt-1 text-sm font-bold text-ink">{formatMinor(row.egpMinor, "EGP")}</p></div>
@@ -186,7 +182,7 @@ export default async function TreasuryPage({
                   </div>
                   {row.type === "تمويل" ? (
                     <div className="mt-3">
-                      <RollbackFundingButton id={row.reference} usdtMinor={row.usdtInMinor} />
+                      <RollbackFundingButton id={row.id} usdtMilli={row.usdtInMilli} />
                     </div>
                   ) : null}
                 </article>

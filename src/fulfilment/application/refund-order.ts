@@ -21,30 +21,10 @@ export function createRefundOrder(deps: {
     if (order.status !== "FAILED") {
       return order
     }
-    await deps.wallets.credit(order.client.id, order.coinsCharged, "refund:" + order.id)
+    await deps.wallets.credit(order.client.id, order.coinsCharged, "refund:" + order.id, "refund:" + order.id)
     const transitioned = apply(order, "REFUNDED")
     const next = Object.freeze({
-      id: transitioned.id,
-      token: transitioned.token,
-      client: transitioned.client,
-      product: transitioned.product,
-      player: transitioned.player,
-      price: transitioned.price,
-      status: transitioned.status,
-      paymentReference: transitioned.paymentReference,
-      distributorOrderId: transitioned.distributorOrderId,
-      createdAt: transitioned.createdAt,
-      discountMinor: transitioned.discountMinor,
-      costMinor: transitioned.costMinor,
-      promoCodeId: transitioned.promoCodeId,
-      playerName: transitioned.playerName,
-      wacEgpMinor: transitioned.wacEgpMinor,
-      cogsEgpMinor: transitioned.cogsEgpMinor,
-      tradingMarginMinor: transitioned.tradingMarginMinor,
-      coinsCharged: transitioned.coinsCharged,
-      coinValueMinor: transitioned.coinValueMinor,
-      coinsConsumed: transitioned.coinsConsumed,
-      markupBasisPoints: transitioned.markupBasisPoints,
+      ...transitioned,
       refundedAt: deps.now(),
     })
     await deps.orders.update(next)

@@ -59,6 +59,7 @@ What each deliverable must do.
 | [05 Payments](03-specs/05-payments.md) | How is client money taken and reconciled? |
 | [06 Back Office](03-specs/06-back-office.md) | What does the admin back office do? |
 | [07 Treasury and Credits](03-specs/07-treasury-and-credits.md) | How is USDT held, priced, and sold as coins? |
+| [09 Legal pages and checkout consent](03-specs/09-legal-pages-and-checkout-consent.md) | What legal pages exist and how is policy consent recorded? (In progress) |
 | [JNY-001 Guest buys a topup](03-specs/journeys/JNY-001-guest-buys-topup-end-to-end.md) | How does a guest buy a topup end to end? (In progress) |
 | [Stories](03-specs/README.md#stories) | Story files STF/CRD (created next). |
 

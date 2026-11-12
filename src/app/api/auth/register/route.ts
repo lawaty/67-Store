@@ -25,6 +25,7 @@ export async function POST(request: Request): Promise<Response> {
     {
       email: text(body.email),
       password: text(body.password),
+      username: text(body.username),
       playerUserId: text(body.playerUserId),
       playerServerId: text(body.playerServerId),
       locale: text(body.locale),

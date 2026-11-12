@@ -6,15 +6,15 @@
 import { useRef } from "react"
 import { Icon } from "@/app/icons"
 import { SubmitButton } from "@/app/submit-button"
-import { formatMinor } from "@/frontend/format"
+import { formatUsdtMilli } from "@/frontend/format"
 import { rollbackFunding } from "./actions"
 
 export function RollbackFundingButton({
   id,
-  usdtMinor,
+  usdtMilli,
 }: {
   readonly id: string
-  readonly usdtMinor: number
+  readonly usdtMilli: number
 }) {
   const dialog = useRef<HTMLDialogElement>(null)
 
@@ -40,7 +40,7 @@ export function RollbackFundingButton({
             </button>
           </div>
           <p className="hint mt-3">
-            {formatMinor(usdtMinor, "USD")} USDT. هيتم حذف حركة التمويل وإعادة حساب WAC والرصيد.
+            {formatUsdtMilli(usdtMilli)} USDT. هيتم حذف حركة التمويل وإعادة حساب WAC والرصيد.
           </p>
           <input type="hidden" name="id" value={id} />
           <div className="mt-4 flex gap-2">

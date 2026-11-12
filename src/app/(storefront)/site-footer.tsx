@@ -5,6 +5,17 @@ import Link from "next/link"
 import { Icon } from "@/app/icons"
 import { t } from "@/i18n/dictionary"
 import type { Locale } from "@/i18n/locale"
+import { brand } from "@/shared/brand"
+import { LEGAL_ROUTES } from "@/shared/legal"
+
+const legalLinks = [
+  { key: "terms", href: LEGAL_ROUTES.terms },
+  { key: "privacy", href: LEGAL_ROUTES.privacy },
+  { key: "refund", href: LEGAL_ROUTES.refund },
+  { key: "delivery", href: LEGAL_ROUTES.delivery },
+  { key: "cookies", href: LEGAL_ROUTES.cookies },
+  { key: "contact", href: LEGAL_ROUTES.contact },
+] as const
 
 export function SiteFooter({ locale }: { locale: Locale }) {
   return (
@@ -12,7 +23,7 @@ export function SiteFooter({ locale }: { locale: Locale }) {
       <div className="footer-grid">
         <div>
           <Link className="brand" href="/">
-            <img src="/logo-64.png" srcSet="/logo-64.png 1x, /logo-128.png 2x" alt="" width={47} height={32} decoding="async" />
+            <img src={brand.logo64} srcSet={`${brand.logo64} 1x, ${brand.logo128} 2x`} alt="" width={47} height={32} decoding="async" />
           </Link>
           <p className="mt-3 max-w-xs text-sm leading-relaxed text-muted">{t(locale, "footer.tagline")}</p>
           <div className="mt-4 flex flex-wrap gap-2">
@@ -35,16 +46,24 @@ export function SiteFooter({ locale }: { locale: Locale }) {
           <h3 className="footer-title">{t(locale, "footer.payments")}</h3>
           <div className="flex flex-wrap gap-2">
             <span className="hud-chip"><Icon name="card" size={12} />{t(locale, "home.methodInstapay")}</span>
-            <span className="hud-chip"><Icon name="crypto" size={12} />{t(locale, "home.methodCrypto")}</span>
+            {/* Crypto rails are deferred, the route stays valid but is not offered. */}
             <span className="hud-chip"><Icon name="coins" size={12} />{t(locale, "home.methodCoins")}</span>
           </div>
           <p className="mt-4 flex items-center gap-2 text-xs text-muted"><Icon name="lock" size={14} />{t(locale, "footer.secure")}</p>
+        </div>
+        <div>
+          <h3 className="footer-title">{t(locale, "legal.nav.heading")}</h3>
+          {legalLinks.map((link) => (
+            <Link key={link.key} className="footer-link" href={link.href}>
+              {t(locale, `legal.nav.${link.key}`)}
+            </Link>
+          ))}
         </div>
       </div>
       <div className="footer-bottom">
         <div className="shell flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p>{t(locale, "footer.rights")}</p>
-          <p className="num text-muted">67.store</p>
+          <p className="num text-muted">{brand.domain}</p>
         </div>
       </div>
     </footer>

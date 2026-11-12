@@ -1,11 +1,12 @@
 /**
  * Presentational panel for the account levels tab: current level, progress to next, and achievements wall.
  */
-import type { AccountLevelsDto } from "@/api/contracts/account"
+import type { AccountAchievementDto, AccountLevelsDto } from "@/api/contracts/account"
 import { Coin } from "@/app/coin"
 import { Icon, type IconName } from "@/app/icons"
 import { t } from "@/i18n/dictionary"
 import type { Locale } from "@/i18n/locale"
+import { AchievementGrid } from "./achievement-grid"
 
 const colorClasses: Record<string, string> = {
   sky: "border-sky/40 bg-sky/10 text-sky-strong dark:text-sky",
@@ -21,12 +22,17 @@ function formatPercent(basisPoints: number): string {
   return Number.isInteger(percent) ? `${percent}%` : `${percent.toFixed(2).replace(/\.?0+$/, "")}%`
 }
 
-export function LevelsPanel({ levels, locale }: { readonly levels: AccountLevelsDto; readonly locale: Locale }) {
+export function LevelsPanel({
+  levels,
+  achievements,
+  locale,
+}: {
+  readonly levels: AccountLevelsDto
+  readonly achievements: readonly AccountAchievementDto[]
+  readonly locale: Locale
+}) {
   const clampedPercent = Math.min(100, Math.max(0, levels.percent))
   const currentColor = colorClasses[levels.current.color] ?? fallbackColor
-
-  const levelKeys = new Set(levels.levels.map((level) => level.key))
-  const orphanBadges = levels.earnedBadges.filter((badge) => !levelKeys.has(badge.levelKey))
 
   return (
     <div className="mt-6 space-y-6">
@@ -88,56 +94,7 @@ export function LevelsPanel({ levels, locale }: { readonly levels: AccountLevels
 
       <section className="mt-8">
         <h3 className="text-base font-bold text-ink">{t(locale, "account.achievements")}</h3>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {levels.levels.map((level) => {
-            const earned = levels.earnedBadges.find((badge) => badge.levelKey === level.key)
-            const isEarned = earned !== undefined
-            const color = colorClasses[level.color] ?? fallbackColor
-            return (
-              <div key={level.key} className={isEarned ? "card card-lift" : "card opacity-60"}>
-                <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-bold ${color}`}>
-                  <Icon name={level.icon as IconName} size={16} />
-                  {level.title}
-                </span>
-                <p className="mt-3 text-sm text-muted">{t(locale, "account.levelThreshold", { coins: level.coins })}</p>
-                {isEarned ? (
-                  <>
-                    <p className="mt-2 text-xs font-semibold text-jade">{t(locale, "account.earned")}</p>
-                    {earned.earnedAt ? (
-                      <p className="num mt-1 text-xs text-muted" dir="ltr">
-                        {earned.earnedAt.slice(0, 10)}
-                      </p>
-                    ) : null}
-                  </>
-                ) : (
-                  <p className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-muted">
-                    <Icon name="lock" size={14} />
-                    {t(locale, "account.locked")}
-                  </p>
-                )}
-              </div>
-            )
-          })}
-
-          {orphanBadges.map((badge) => {
-            const color = colorClasses[badge.color] ?? fallbackColor
-            return (
-              <div key={badge.levelKey} className="card card-lift">
-                <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-bold ${color}`}>
-                  <Icon name={badge.icon as IconName} size={16} />
-                  {badge.title}
-                </span>
-                <p className="mt-3 text-sm text-muted">{t(locale, "account.levelThreshold", { coins: badge.coins })}</p>
-                <p className="mt-2 text-xs font-semibold text-jade">{t(locale, "account.earned")}</p>
-                {badge.earnedAt ? (
-                  <p className="num mt-1 text-xs text-muted" dir="ltr">
-                    {badge.earnedAt.slice(0, 10)}
-                  </p>
-                ) : null}
-              </div>
-            )
-          })}
-        </div>
+        <AchievementGrid achievements={achievements} locale={locale} />
       </section>
     </div>
   )

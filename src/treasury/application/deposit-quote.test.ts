@@ -28,7 +28,7 @@ function createQuote(overrides: {
   return createQuoteDeposit({
     treasury: {
       snapshot: async () => ({
-        usdtMinor: 0,
+        usdtMilli: 0,
         basisEgpMinor: 0,
         wacEgpMinor: overrides.wacEgpMinor ?? 5000,
       }),

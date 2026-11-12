@@ -15,7 +15,9 @@ export type CheckoutError =
   | "price"
   | "coverage"
   | "unavailable"
+  | "payment"
+  | "terms"
 
 export type CheckoutResultDto =
   | { readonly ok: true; readonly redirectUrl: string }
-  | { readonly ok: false; readonly error: CheckoutError }
+  | { readonly ok: false; readonly error: CheckoutError; readonly redirectUrl?: string }

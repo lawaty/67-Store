@@ -7,6 +7,11 @@ import { PaymentProvider } from "../ports/payment-provider"
 import { PaymentRepository } from "../ports/payment-repository"
 import { PaymentError } from "../domain/payment-error"
 
+function redirectUrlFor(payment: Payment): string {
+  if (payment.providerReference.startsWith("fake_")) return `/checkout/fake/${payment.providerReference}`
+  throw new PaymentError("A pending payment cannot be resumed")
+}
+
 export function createStartPayment(deps: {
   providers: Record<PaymentProviderName, PaymentProvider>
   payments: PaymentRepository
@@ -21,6 +26,14 @@ export function createStartPayment(deps: {
       throw new PaymentError(
         `Cannot start a payment for an order in ${input.order.status}`
       )
+    }
+    const existing = await deps.payments.findByOrderId(input.order.id)
+    if (existing.some((p) => p.status === "PAID")) {
+      throw new PaymentError("Order already has a paid payment")
+    }
+    const pending = existing.find((p) => p.status === "PENDING")
+    if (pending) {
+      return { payment: pending, redirectUrl: redirectUrlFor(pending) }
     }
     const chargeResult = await deps.providers[input.provider].charge({
       orderId: input.order.id,

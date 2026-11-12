@@ -9,11 +9,11 @@ import { walletFunding } from "@/treasury"
 import { money } from "@/shared/money"
 import { confirmFakePayment, paymentProviderFor, readFakePayment } from "./payments"
 
-const instapay = payment({
+const paymob = payment({
   id: "p1",
   orderId: "o1",
-  provider: "INSTAPAY",
-  providerReference: "fake_instapay_o1",
+  provider: "PAYMOB",
+  providerReference: "fake_paymob_o1",
   amount: money(1000, "USD"),
   status: "PENDING",
 })
@@ -30,6 +30,7 @@ const crypto = payment({
 const paidOrder = order({
   id: "o1",
   token: "t1",
+  profileId: "p1",
   client: client("c1"),
   product: product({ id: "p", distributorId: "d", name: "86", cost: money(1000, "USD"), game: "mlbb" }),
   player: player("1", "2"),
@@ -41,6 +42,7 @@ const paidOrder = order({
 const cryptoOrder = order({
   id: "o2",
   token: "t2",
+  profileId: "p1",
   client: client("c1"),
   product: product({ id: "p", distributorId: "d", name: "86", cost: money(2000, "USD"), game: "mlbb" }),
   player: player("1", "2"),
@@ -58,8 +60,8 @@ const funding = walletFunding({
   coins: 2,
   wacEgpMinor: 5000,
   egpValueMinor: 10000,
-  provider: "INSTAPAY",
-  providerReference: "fake_instapay_fund_f1",
+  provider: "PAYMOB",
+  providerReference: "fake_paymob_fund_f1",
   status: "PENDING",
   depositId: null,
   createdAt: "2026-11-07T00:00:00.000Z",
@@ -69,7 +71,9 @@ const funding = walletFunding({
 function nullPayments() {
   return {
     findByProviderReference: async () => null,
+    findByOrderId: async () => [],
     save: async () => {},
+    saveIfAbsent: async () => true,
     markStatus: async () => {},
   }
 }
@@ -92,8 +96,10 @@ function fakeContainer(overrides: TestOverrides = {}): Container {
   return {
     payments: {
       findByProviderReference: async (provider: string) =>
-        provider === "CRYPTO" ? crypto : provider === "INSTAPAY" ? instapay : null,
+        provider === "CRYPTO" ? crypto : provider === "PAYMOB" ? paymob : null,
+      findByOrderId: async () => [],
       save: async () => {},
+      saveIfAbsent: async () => true,
       markStatus: async () => {},
     },
     orders: {
@@ -101,7 +107,7 @@ function fakeContainer(overrides: TestOverrides = {}): Container {
     },
     walletFundings: {
       findByReference: async (reference: string) =>
-        reference === "fake_instapay_fund_f1" ? funding : null,
+        reference === "fake_paymob_fund_f1" ? funding : null,
     },
     confirmPayment: async () => paidOrder,
     fulfilOrder: async () => {},
@@ -113,13 +119,13 @@ function fakeContainer(overrides: TestOverrides = {}): Container {
 describe("paymentProviderFor", () => {
   it("infers the provider from the fake reference prefix", () => {
     expect(paymentProviderFor("fake_crypto_o2")).toBe("CRYPTO")
-    expect(paymentProviderFor("fake_instapay_o1")).toBe("INSTAPAY")
-    expect(paymentProviderFor("anything_else")).toBe("INSTAPAY")
+    expect(paymentProviderFor("fake_paymob_o1")).toBe("PAYMOB")
+    expect(paymentProviderFor("anything_else")).toBe("PAYMOB")
   })
 
   it("infers the provider for wallet funding references", () => {
     expect(paymentProviderFor("fake_crypto_fund_f9")).toBe("CRYPTO")
-    expect(paymentProviderFor("fake_instapay_fund_f1")).toBe("INSTAPAY")
+    expect(paymentProviderFor("fake_paymob_fund_f1")).toBe("PAYMOB")
   })
 })
 
@@ -133,10 +139,10 @@ describe("readFakePayment", () => {
     })
   })
 
-  it("returns purpose order for an instapay order payment", async () => {
-    expect(await readFakePayment(fakeContainer(), "fake_instapay_o1")).toEqual({
+  it("returns purpose order for a paymob order payment", async () => {
+    expect(await readFakePayment(fakeContainer(), "fake_paymob_o1")).toEqual({
       amount: money(1000, "USD"),
-      provider: "INSTAPAY",
+      provider: "PAYMOB",
       purpose: "order",
       returnUrl: "/order/t1",
     })
@@ -146,9 +152,9 @@ describe("readFakePayment", () => {
     const container = fakeContainer({
       orders: { findById: async () => null },
     })
-    expect(await readFakePayment(container, "fake_instapay_o1")).toEqual({
+    expect(await readFakePayment(container, "fake_paymob_o1")).toEqual({
       amount: money(1000, "USD"),
-      provider: "INSTAPAY",
+      provider: "PAYMOB",
       purpose: "order",
       returnUrl: "/",
     })
@@ -156,9 +162,9 @@ describe("readFakePayment", () => {
 
   it("returns purpose funding with money amount, funding provider and account returnUrl", async () => {
     const container = fakeContainer({ payments: nullPayments() })
-    expect(await readFakePayment(container, "fake_instapay_fund_f1")).toEqual({
+    expect(await readFakePayment(container, "fake_paymob_fund_f1")).toEqual({
       amount: money(10000, "EGP"),
-      provider: "INSTAPAY",
+      provider: "PAYMOB",
       purpose: "funding",
       returnUrl: "/account?tab=wallet&funded=1",
     })
@@ -183,13 +189,13 @@ describe("confirmFakePayment", () => {
         confirmPayment,
         fulfilOrder,
       }),
-      "fake_instapay_fund_f1",
+      "fake_paymob_fund_f1",
       true,
     )
 
     expect(result).toEqual({ ok: true, redirectUrl: "/account?tab=wallet&funded=1" })
     expect(settleWalletFunding).toHaveBeenCalledTimes(1)
-    expect(settleWalletFunding).toHaveBeenCalledWith({ providerReference: "fake_instapay_fund_f1" })
+    expect(settleWalletFunding).toHaveBeenCalledWith({ providerReference: "fake_paymob_fund_f1" })
     expect(confirmPayment).not.toHaveBeenCalled()
     expect(fulfilOrder).not.toHaveBeenCalled()
   })
@@ -198,7 +204,7 @@ describe("confirmFakePayment", () => {
     const settleWalletFunding = vi.fn(async () => ({ ok: false as const, error: "not_pending" as const }))
     const result = await confirmFakePayment(
       fakeContainer({ payments: nullPayments(), settleWalletFunding }),
-      "fake_instapay_fund_f1",
+      "fake_paymob_fund_f1",
       true,
     )
 
@@ -212,18 +218,18 @@ describe("confirmFakePayment", () => {
 
     const result = await confirmFakePayment(
       fakeContainer({ confirmPayment, fulfilOrder }),
-      "fake_instapay_o1",
+      "fake_paymob_o1",
       true,
     )
 
     expect(result).toEqual({ ok: true, redirectUrl: "/order/t1" })
-    expect(confirmPayment).toHaveBeenCalledWith({ provider: "INSTAPAY", reference: "fake_instapay_o1", status: "PAID" })
+    expect(confirmPayment).toHaveBeenCalledWith({ provider: "PAYMOB", reference: "fake_paymob_o1", status: "PAID" })
     expect(fulfilOrder).toHaveBeenCalledWith(paidOrder)
   })
 
   it("does not fulfil when fake fulfilment is disabled", async () => {
     const fulfilOrder = vi.fn(async (value: typeof paidOrder) => value)
-    const result = await confirmFakePayment(fakeContainer({ fulfilOrder }), "fake_instapay_o1", false)
+    const result = await confirmFakePayment(fakeContainer({ fulfilOrder }), "fake_paymob_o1", false)
 
     expect(result).toEqual({ ok: true, redirectUrl: "/order/t1" })
     expect(fulfilOrder).not.toHaveBeenCalled()
@@ -233,6 +239,7 @@ describe("confirmFakePayment", () => {
     const awaiting = order({
       id: "o1",
       token: "t1",
+      profileId: "p1",
       client: client("c1"),
       product: product({ id: "p", distributorId: "d", name: "86", cost: money(1000, "USD"), game: "mlbb" }),
       player: player("1", "2"),
@@ -243,7 +250,7 @@ describe("confirmFakePayment", () => {
     const confirmPayment = vi.fn(async () => awaiting)
     const fulfilOrder = vi.fn(async (value: typeof awaiting) => value)
 
-    const result = await confirmFakePayment(fakeContainer({ confirmPayment, fulfilOrder }), "fake_instapay_o1", true)
+    const result = await confirmFakePayment(fakeContainer({ confirmPayment, fulfilOrder }), "fake_paymob_o1", true)
 
     expect(result).toEqual({ ok: true, redirectUrl: "/order/t1" })
     expect(fulfilOrder).not.toHaveBeenCalled()
@@ -278,7 +285,7 @@ describe("confirmFakePayment", () => {
 
     const result = await confirmFakePayment(
       fakeContainer({ confirmPayment, fulfilOrder }),
-      "fake_instapay_o1",
+      "fake_paymob_o1",
       true,
     )
 

@@ -11,7 +11,9 @@ import { Icon } from "@/app/icons"
 import { Toast } from "@/app/toast"
 import { getLocale } from "@/i18n/server"
 import { t } from "@/i18n/dictionary"
+import { displayCurrency } from "@/frontend/format"
 import { CopyLink } from "./copy-link"
+import { resumePayment } from "./actions"
 
 export const dynamic = "force-dynamic"
 
@@ -26,8 +28,9 @@ const rank: Record<OrderStatusDto, number> = {
   REFUNDED: 1,
 }
 
-export default async function Page({ params }: { params: Promise<{ token: string }> }) {
+export default async function Page({ params, searchParams }: { params: Promise<{ token: string }>; searchParams: Promise<{ resume?: string }> }) {
   const { token } = await params
+  const { resume } = await searchParams
   const locale = await getLocale()
 
   const order = await (await serverApi())
@@ -37,7 +40,7 @@ export default async function Page({ params }: { params: Promise<{ token: string
       throw error
     })
 
-  const usd = `${(order.price.minor / 100).toFixed(2)} ${order.price.currency}`
+  const usd = `${(order.price.minor / 100).toFixed(2)} ${displayCurrency(order.price.currency)}`
   const egp = `${(order.egp.minor / 100).toFixed(2)} ${order.egp.currency}`
   const currency = t(locale, "common.currency")
   const discount = order.discountEgp === null ? "" : `${(order.discountEgp.minor / 100).toFixed(2)} ${currency}`
@@ -85,6 +88,9 @@ export default async function Page({ params }: { params: Promise<{ token: string
           {order.status === "DELIVERED" ? <Toast message={t(locale, "order.shippedSuccess")} /> : null}
           {order.status === "FAILED" || order.status === "REFUNDED" || order.status === "EXPIRED" ? (
             <div className="alert mt-4">{t(locale, "order.cannotComplete")}</div>
+          ) : null}
+          {typeof resume === "string" && resume !== "" ? (
+            <div className="alert mt-4">{t(locale, "order.resumeFailed")}</div>
           ) : null}
 
           <section className="mt-6 rounded-2xl border border-line bg-surface p-5 shadow-e1 sm:p-6">
@@ -163,6 +169,19 @@ export default async function Page({ params }: { params: Promise<{ token: string
                 </span>
                 <strong className="text-sm text-jade" dir="ltr">− {discount}</strong>
               </div>
+            ) : null}
+            {order.status === "AWAITING_PAYMENT" ? (
+              <form action={resumePayment} className="mt-4 border-t border-line pt-4 stack">
+                <input type="hidden" name="token" value={order.token} />
+                <div className="field">
+                  <label htmlFor="resume-method">{t(locale, "order.paymentMethod")}</label>
+                  <select id="resume-method" name="method" defaultValue="egp">
+                    <option value="egp">{t(locale, "order.methodEgp")}</option>
+                    <option value="usdt">{t(locale, "order.methodUsdt")}</option>
+                  </select>
+                </div>
+                <button type="submit" className="btn btn-primary w-full">{t(locale, "order.resumePayment")}</button>
+              </form>
             ) : null}
           </div>
 

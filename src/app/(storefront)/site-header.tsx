@@ -12,10 +12,13 @@ import { ThemeToggle } from "@/app/theme-toggle"
 import { t } from "@/i18n/dictionary"
 import type { Locale } from "@/i18n/locale"
 import type { UrlMethod } from "@/app/urls"
+import { brand } from "@/shared/brand"
+import { LEGAL_ROUTES } from "@/shared/legal"
+import { UserMenu } from "@/app/(storefront)/user-menu"
 
 const links = [
   { href: "/", key: "nav.home", icon: "home" },
-  { href: "/account", key: "nav.myAccount", icon: "user" },
+  { href: LEGAL_ROUTES.contact, key: "legal.header.contact", icon: "help" },
 ] as const
 
 export function SiteHeader({ locale, method }: { locale: Locale; method: UrlMethod }) {
@@ -54,15 +57,11 @@ export function SiteHeader({ locale, method }: { locale: Locale; method: UrlMeth
       <header className="site-header">
         <div className="site-nav">
           <Link className="brand" href="/" onClick={() => setOpen(false)}>
-            <img src="/logo-64.png" srcSet="/logo-64.png 1x, /logo-128.png 2x" alt="" width={47} height={32} decoding="async" />
+            <img src={brand.logo64} srcSet={`${brand.logo64} 1x, ${brand.logo128} 2x`} alt="" width={47} height={32} decoding="async" />
           </Link>
           <nav className="ms-auto hidden items-center gap-1 md:flex">{nav}</nav>
           <div className="ms-auto flex items-center gap-2 md:ms-0">
-            <ThemeToggle label={t(locale, "theme.toggle")} />
-            <LocaleSwitcher locale={locale} />
-            <div className="hidden md:block">
-              <CurrencySwitcher locale={locale} value={method} />
-            </div>
+            <UserMenu locale={locale} method={method} />
             <button
               type="button"
               className="btn-icon md:hidden"
@@ -86,17 +85,40 @@ export function SiteHeader({ locale, method }: { locale: Locale; method: UrlMeth
           <div className="absolute inset-y-0 end-0 flex w-[min(20rem,86vw)] animate-slide-in flex-col gap-3 border-s border-line bg-canvas p-5 shadow-e2">
             <div className="flex items-center justify-between">
               <Link className="brand" href="/" onClick={() => setOpen(false)}>
-                <img src="/logo-64.png" srcSet="/logo-64.png 1x, /logo-128.png 2x" alt="" width={47} height={32} decoding="async" />
+                <img src={brand.logo64} srcSet={`${brand.logo64} 1x, ${brand.logo128} 2x`} alt="" width={47} height={32} decoding="async" />
               </Link>
               <button type="button" className="btn-icon" onClick={() => setOpen(false)} aria-label={t(locale, "common.closeAria")}>
                 <Icon name="close" size={18} />
               </button>
             </div>
-            <div className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-surface px-3 py-2">
-              <span className="text-xs font-bold text-muted">{t(locale, "common.preferredCurrency")}</span>
-              <CurrencySwitcher locale={locale} value={method} />
+            <nav className="mt-2 flex flex-col gap-1">{nav}</nav>
+            <div className="flex flex-col gap-1">
+              <Link href="/account" className="nav-link" onClick={() => setOpen(false)}>
+                <Icon name="user" size={16} />
+                {t(locale, "nav.myAccount")}
+              </Link>
+              <Link href="/terms" className="nav-link" onClick={() => setOpen(false)}>
+                <Icon name="help" size={16} />
+                {t(locale, "header.policies")}
+              </Link>
             </div>
-            <nav className="mt-4 flex flex-col gap-1">{nav}</nav>
+            <div className="rounded-2xl border border-line bg-surface p-4">
+              <p className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-muted">{t(locale, "header.settings")}</p>
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs font-bold text-muted">{t(locale, "header.language")}</span>
+                  <LocaleSwitcher locale={locale} />
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs font-bold text-muted">{t(locale, "header.theme")}</span>
+                  <ThemeToggle label={t(locale, "theme.toggle")} />
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs font-bold text-muted">{t(locale, "common.preferredCurrency")}</span>
+                  <CurrencySwitcher locale={locale} value={method} />
+                </div>
+              </div>
+            </div>
             <div className="mt-auto rounded-2xl border border-line bg-surface p-4">
               <p className="text-xs leading-relaxed text-muted">{t(locale, "footer.tagline")}</p>
               <div className="mt-3 flex flex-wrap gap-2">

@@ -1,12 +1,15 @@
 /**
  * Shared app copy for navigation, footer, chat, review notices, and common labels, exported as matching `ar` and `en` records with the same key set.
  */
+import { brand } from "@/shared/brand"
 export const ar = {
   // nav
   "nav.myAccount": "حسابي",
   // review bar
   "review.underReview": "الموقع لسه بيتراجع، ولسه ما اتأكدنا من كل حاجة.",
   "review.everythingUnderReview": "كل حاجة لسه بتتراجع، ولسه ما اتأكدنا من حاجة تمامًا.",
+  "warning.fakePaymentsEnabled": "الدفع التجريبي مفعّل",
+  "warning.fakePaymentsFulfil": "الطلبات بتتنفّذ فعليًا",
   // footer / shared
   "common.close": "اقفل",
   "common.backToCatalogue": "أرجع للكتالوج",
@@ -15,10 +18,10 @@ export const ar = {
   "common.currency": "ج.م",
   "common.playerChecking": "بيتم التحقق من اللاعب...",
   "common.preferredCurrency": "العملة الافتراضية",
-  "common.currencyCoins": "عملات ٦٧",
+  "common.currencyCoins": `${brand.coinAr}`,
   // chat
   "chat.ariaLabel": "مساعدة",
-  "chat.title": "مساعدة ٦٧",
+  "chat.title": `${brand.helpAr}`,
   "chat.fabAria": "مساعدة",
   "chat.greeting": "أهلًا بيك. اختار سؤالًا وهجاوبك فورًا.",
   "chat.note": "ردود جاهزة — لسه مفيش موظف متصل.",
@@ -28,7 +31,7 @@ export const ar = {
   "chat.a2": "ما بنحتفظش ببيانات بطاقتك. الدفع بيتم على صفحة مزوّد الدفع نفسه.",
   "chat.q3": "دخلت منطقة غلط، إيه اللي بيحصل؟",
   "chat.a3": "بنتأكد من اللاعب قبل الدفع، فالطلب ما بيكملش لو البيانات غلط. ولو التسليم فشل بعد الدفع، المبلغ بيرجع.",
-  "chat.q4": "إيه هي عملات ٦٧؟",
+  "chat.q4": `إيه هي ${brand.coinAr}؟`,
   "chat.a4": "عملات في محفظتك جوه الحساب. قيمة العملة بالجنيه المتجر هو اللي بيحددها، وتقدر تدفع بيها في أي وقت.",
   "chat.q5": "إزاي أحفظ بياناتي؟",
   "chat.a5": "اعمل حسابًا، وشغّل خيار حفظ بياناتي في صفحة الدفع. بعد كده تختار ملف اللاعب بدل ما تكتب المعرّف كل مرة.",
@@ -43,19 +46,29 @@ export const ar = {
   "common.copy": "انسخ",
   "common.copied": "تم النسخ",
   "footer.tagline": "اشحن ألعابك فورًا، بخطوات واضحة.",
-  "footer.rights": "© ٢٠٢٦ ٦٧ ستور. كل الحقوق محفوظة.",
+  "footer.rights": `© ٢٠٢٦ ${brand.nameAr}. كل الحقوق محفوظة.`,
   "footer.payments": "طرق الدفع",
   "footer.delivery": "تسليم فوري",
   "footer.secure": "دفع آمن",
   "footer.support": "مساعدة فورية",
   "footer.shop": "المتجر",
   "footer.account": "الحساب",
+  // header menu
+  "header.menu": "افتح قائمة الإعدادات",
+  "header.close": "أغلق قائمة الإعدادات",
+  "header.policies": "السياسات",
+  "header.language": "اللغة",
+  "header.theme": "المظهر",
+  "header.currency": "العملة",
+  "header.settings": "الإعدادات",
 } as const
 
 export const en: Record<keyof typeof ar, string> = {
   "nav.myAccount": "My account",
   "review.underReview": "This site is under review and not everything has been verified yet.",
   "review.everythingUnderReview": "Everything is under review and nothing is completely verified.",
+  "warning.fakePaymentsEnabled": "Fake payments are enabled",
+  "warning.fakePaymentsFulfil": "orders are fulfilled for real",
   "common.close": "Close",
   "common.backToCatalogue": "Back to catalogue",
   "common.closeAria": "Close",
@@ -63,9 +76,9 @@ export const en: Record<keyof typeof ar, string> = {
   "common.currency": "EGP",
   "common.playerChecking": "Checking player...",
   "common.preferredCurrency": "Default currency",
-  "common.currencyCoins": "67 Coins",
+  "common.currencyCoins": `${brand.coin}`,
   "chat.ariaLabel": "Help",
-  "chat.title": "67 Help",
+  "chat.title": `${brand.help}`,
   "chat.fabAria": "Help",
   "chat.greeting": "Welcome. Choose a question and I'll answer right away.",
   "chat.note": "Ready answers — no agent online yet.",
@@ -75,7 +88,7 @@ export const en: Record<keyof typeof ar, string> = {
   "chat.a2": "We do not store your card details. Payment is made on the payment provider's page itself.",
   "chat.q3": "I entered the wrong zone/server. What happens?",
   "chat.a3": "We verify the player profile before payment, so the order will not complete if the details are incorrect. If delivery fails after payment, the amount is refunded.",
-  "chat.q4": "What are 67 coins?",
+  "chat.q4": `What are ${brand.coin.toLowerCase()}?`,
   "chat.a4": "Coins are in your wallet inside your account. The store sets the coin value in EGP, and you can use them to pay at any time.",
   "chat.q5": "How do I save my details?",
   "chat.a5": "Create an account and enable \"save my details\" on the checkout page. Then you can select a saved player profile instead of entering the player ID every time.",
@@ -90,11 +103,19 @@ export const en: Record<keyof typeof ar, string> = {
   "common.copy": "Copy",
   "common.copied": "Copied",
   "footer.tagline": "Instant game top-ups, made clear.",
-  "footer.rights": "© 2026 67 Store. All rights reserved.",
+  "footer.rights": `© 2026 ${brand.name}. All rights reserved.`,
   "footer.payments": "Payment methods",
   "footer.delivery": "Instant delivery",
   "footer.secure": "Secure payment",
   "footer.support": "Instant help",
   "footer.shop": "Shop",
   "footer.account": "Account",
+  // header menu
+  "header.menu": "Open settings menu",
+  "header.close": "Close settings menu",
+  "header.policies": "Policies",
+  "header.language": "Language",
+  "header.theme": "Appearance",
+  "header.currency": "Currency",
+  "header.settings": "Settings",
 }

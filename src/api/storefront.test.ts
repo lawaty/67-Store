@@ -18,7 +18,6 @@ function fakeContainer(overrides: FakeContainerOverrides = {}): Container {
   ]
 
   const base: Container = {
-    operationsMode: async () => "live",
     products: {
       listActive: async () => products,
       listAll: async () => products,
@@ -37,9 +36,18 @@ function fakeContainer(overrides: FakeContainerOverrides = {}): Container {
     },
     gamingProfiles: {
       listByAccount: async () => [
-        gamingProfile({ id: "g1", accountId: "a1", label: "Main", userId: "1", serverId: "2", game: "mlbb" }),
+        gamingProfile({ id: "g1", clientId: "c1", accountId: "a1", userId: "1", serverId: "2", game: "mlbb" }),
       ],
-      add: async () => {},
+      add: async (input: { id: string; clientId: string; accountId: string | null; userId: string; serverId: string; game: string; playerName?: string | null }) => ({
+        id: input.id,
+        clientId: input.clientId,
+        accountId: input.accountId,
+        userId: input.userId,
+        serverId: input.serverId,
+        game: input.game,
+        playerName: input.playerName ?? null,
+        createdAt: null,
+      }),
       remove: async () => {},
     },
     orders: {
@@ -59,11 +67,12 @@ function fakeContainer(overrides: FakeContainerOverrides = {}): Container {
       checkPlayer: async () => ({ valid: true, name: "Player" }),
       placeOrder: async () => ({ distributorOrderId: "d1", status: "PENDING" }),
       getOrder: async () => ({ distributorOrderId: "d1", status: "COMPLETED" }),
-      getBalance: async () => ({ balanceMinor: 99999999 }),
+      getBalance: async () => ({ balanceMilli: 999999990 }),
     },
     coinSupply: { totalCoins: async () => 0 },
+    gatewaySettings: async () => ({ card: true, wallet: true, crypto: true, coins: true, fulfilmentEnabled: true }),
     treasury: {
-      snapshot: async () => ({ usdtMinor: 99999999, basisEgpMinor: 0, wacEgpMinor: 0 }),
+      snapshot: async () => ({ usdtMilli: 999999990, basisEgpMinor: 0, wacEgpMinor: 0 }),
     } as unknown as Container["treasury"],
   } as unknown as Container
 
@@ -89,6 +98,17 @@ describe("readStorefront", () => {
     expect(storefront.products[0].coins).toBe(12000)
     expect(storefront.coinValue).toBe(0.01)
     expect(storefront.profiles).toHaveLength(1)
+  })
+
+  it("carries gateway flags from the container in the DTO", async () => {
+    const storefront = await readStorefront(
+      fakeContainer({ gatewaySettings: async () => ({ card: false, wallet: true, crypto: false, coins: false, fulfilmentEnabled: true }) } as never),
+      { accountId: "a1", clientId: "c1" },
+      "default",
+      now,
+    )
+
+    expect(storefront.gateways).toEqual({ card: false, wallet: true, crypto: false, coins: false })
   })
 
   it("uses base markup for a client when no curve or override applies", async () => {
@@ -245,7 +265,7 @@ describe("readStorefront", () => {
   it("marks available-affordable products buyable with no funding gap", async () => {
     const container = fakeContainer({
       treasury: {
-        snapshot: async () => ({ usdtMinor: 25000, basisEgpMinor: 0, wacEgpMinor: 0 }),
+        snapshot: async () => ({ usdtMilli: 250000, basisEgpMinor: 0, wacEgpMinor: 0 }),
       } as unknown as Container["treasury"],
     })
 
@@ -263,7 +283,7 @@ describe("readStorefront", () => {
   it("reports insufficient available funds with funding gap and blocks direct pay", async () => {
     const container = fakeContainer({
       treasury: {
-        snapshot: async () => ({ usdtMinor: 15000, basisEgpMinor: 0, wacEgpMinor: 0 }),
+        snapshot: async () => ({ usdtMilli: 150000, basisEgpMinor: 0, wacEgpMinor: 0 }),
       } as unknown as Container["treasury"],
     })
 
@@ -278,7 +298,7 @@ describe("readStorefront", () => {
   it("reduces available by reserved coins when deciding direct-pay availability", async () => {
     const container = fakeContainer({
       treasury: {
-        snapshot: async () => ({ usdtMinor: 25000, basisEgpMinor: 0, wacEgpMinor: 0 }),
+        snapshot: async () => ({ usdtMilli: 250000, basisEgpMinor: 0, wacEgpMinor: 0 }),
       } as unknown as Container["treasury"],
       // 10000 outstanding coins at 1 minor each reserve 10000, so recorded
       // 25000 leaves only 15000 available: p1 (10000) still buyable, p2 (20000) not.
@@ -294,7 +314,7 @@ describe("readStorefront", () => {
   })
 
   it("marks all products unknown when recorded snapshot fails and does not read live balance", async () => {
-    const getBalance = vi.fn(async () => ({ balanceMinor: 99999999 }))
+    const getBalance = vi.fn(async () => ({ balanceMilli: 999999990 }))
     const container = fakeContainer({
       distributor: {
         checkPlayer: async () => ({ valid: true, name: "Player" }),
@@ -316,7 +336,7 @@ describe("readStorefront", () => {
   })
 
   it("uses available treasury for direct pay, not live distributor balance", async () => {
-    const getBalance = vi.fn(async () => ({ balanceMinor: 99999999 }))
+    const getBalance = vi.fn(async () => ({ balanceMilli: 999999990 }))
     const container = fakeContainer({
       distributor: {
         checkPlayer: async () => ({ valid: true, name: "Player" }),
@@ -325,7 +345,7 @@ describe("readStorefront", () => {
         getBalance,
       },
       treasury: {
-        snapshot: async () => ({ usdtMinor: 12000, basisEgpMinor: 0, wacEgpMinor: 0 }),
+        snapshot: async () => ({ usdtMilli: 120000, basisEgpMinor: 0, wacEgpMinor: 0 }),
       } as unknown as Container["treasury"],
     })
 
@@ -338,21 +358,4 @@ describe("readStorefront", () => {
     ])
   })
 
-  it("presents every product as buyable in sandbox even when treasury is insufficient, without reading treasury", async () => {
-    const snapshot = vi.fn(async () => ({ usdtMinor: 0, basisEgpMinor: 0, wacEgpMinor: 0 }))
-    const container = fakeContainer({
-      operationsMode: async () => "sandbox",
-      treasury: { snapshot } as unknown as Container["treasury"],
-    })
-
-    const storefront = await readStorefront(container, { accountId: "a1", clientId: "c1" }, "default", now)
-
-    expect(snapshot).not.toHaveBeenCalled()
-    expect(storefront.products.length).toBeGreaterThan(0)
-    expect(storefront.products.every((p) => p.buyable === true && p.fundingGapMinor === 0)).toBe(true)
-    expect(storefront.products.map((p) => [p.id, p.buyable, p.fundingGapMinor, p.unavailableReason, p.directPayAvailable])).toEqual([
-      ["p1", true, 0, null, true],
-      ["p2", true, 0, null, true],
-    ])
-  })
 })

@@ -12,6 +12,7 @@ import { quote } from "../domain/quote"
 import { PromoRepository } from "@/promos"
 import { PromoCode, discountFor } from "@/promos"
 import { money } from "../../shared/money"
+import { usdtMilliFromUsdMinor } from "@/shared/usdt"
 import { cogsEgpMinor } from "@/treasury"
 export function createPlaceOrder(deps: {
   orders: OrderRepository
@@ -20,15 +21,18 @@ export function createPlaceOrder(deps: {
   promos: PromoRepository
   now: () => string
   wac: () => Promise<number>
-}): (input: {
-  client: Client
-  product: Product
-  player: Player
-  markup: Markup
-  coinValueMinor: number
-  promoCode: string | null
-  playerName?: string | null
-}) => Promise<{
+  }): (input: {
+    client: Client
+    product: Product
+    player: Player
+    markup: Markup
+    coinValueMinor: number
+    promoCode: string | null
+    profileId: string
+    playerName?: string | null
+    termsVersion?: string | null
+    termsAcceptedAt?: string | null
+  }) => Promise<{
   order: Order
   promoError: "unknown" | "inactive" | "expired" | "exhausted" | null
 }> {
@@ -39,7 +43,10 @@ export function createPlaceOrder(deps: {
     markup: Markup
     coinValueMinor: number
     promoCode: string | null
+    profileId: string
     playerName?: string | null
+    termsVersion?: string | null
+    termsAcceptedAt?: string | null
   }): Promise<{
     order: Order
     promoError: "unknown" | "inactive" | "expired" | "exhausted" | null
@@ -76,17 +83,22 @@ export function createPlaceOrder(deps: {
     }
 
     const wacEgpMinor = await deps.wac()
-    const cogsEgpMinorValue = cogsEgpMinor(input.product.cost.minor, wacEgpMinor)
+    const cogsEgpMinorValue = cogsEgpMinor(
+      usdtMilliFromUsdMinor(input.product.cost.minor),
+      wacEgpMinor,
+    )
     const tradingMarginMinor = finalPrice.minor - input.product.cost.minor
 
     const o = order({
       id,
       token: deps.newToken(),
+      profileId: input.profileId,
       client: input.client,
       product: input.product,
       player: input.player,
       price: finalPrice,
       costMinor: input.product.cost.minor,
+      costUsdtMilli: null,
       discountMinor,
       promoCodeId,
       playerName: input.playerName,
@@ -95,6 +107,8 @@ export function createPlaceOrder(deps: {
       tradingMarginMinor,
       coinValueMinor: input.coinValueMinor,
       markupBasisPoints: input.markup.basisPoints,
+      termsVersion: input.termsVersion,
+      termsAcceptedAt: input.termsAcceptedAt,
     })
     await deps.orders.save(o)
     return { order: o, promoError }

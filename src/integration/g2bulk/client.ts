@@ -6,7 +6,7 @@ import { Distributor, DistributorError, DistributorOrder, PlayerCheck } from "@/
 import { Player } from "@/ordering"
 import { Product } from "@/catalogue"
 import { idempotencyKey } from "./idempotency"
-import { usdToMinor } from "./catalogue-mapper"
+import { usdToMilli, usdToMinor } from "./catalogue-mapper"
 
 import { FetchLike } from "@/shared/fetch"
 
@@ -39,8 +39,17 @@ function unwrapData(body: unknown): unknown {
   return body
 }
 
+function unwrapOrder(body: unknown): unknown {
+  if (typeof body === "object" && body !== null) {
+    const b = body as Record<string, unknown>
+    if (typeof b.order === "object" && b.order !== null) return b.order
+    if (typeof b.data === "object" && b.data !== null) return b.data
+  }
+  return body
+}
+
 function mapOrderPayload(payload: unknown, httpStatus: number): DistributorOrder {
-  const unwrapped = unwrapData(payload)
+  const unwrapped = unwrapOrder(payload)
   if (typeof unwrapped !== "object" || unwrapped === null) {
     throw new DistributorError(httpStatus, `Unknown distributor status: ${String((unwrapped as any)?.status)}`)
   }
@@ -52,7 +61,30 @@ function mapOrderPayload(payload: unknown, httpStatus: number): DistributorOrder
   if (typeof statusRaw === "string") {
     const upper = statusRaw.toUpperCase()
     if (STATUSES.has(upper)) {
-      return { distributorOrderId, status: upper as DistributorOrder["status"] }
+      const result: DistributorOrder = { distributorOrderId, status: upper as DistributorOrder["status"] }
+      const rawPrice = p.price
+      if (rawPrice !== undefined) {
+        const price = typeof rawPrice === "number" ? rawPrice : (typeof rawPrice === "string" ? Number(rawPrice) : NaN)
+        if (Number.isFinite(price)) {
+          try {
+            const priceMinor = usdToMinor(price)
+            if (Number.isFinite(priceMinor) && Number.isInteger(priceMinor) && priceMinor >= 0) {
+              ;(result as { priceMinor?: number }).priceMinor = priceMinor
+            }
+          } catch {
+            // omit priceMinor on conversion failure
+          }
+          try {
+            const priceUsdtMilli = usdToMilli(price)
+            if (Number.isFinite(priceUsdtMilli) && Number.isInteger(priceUsdtMilli) && priceUsdtMilli >= 0) {
+              ;(result as { priceUsdtMilli?: number }).priceUsdtMilli = priceUsdtMilli
+            }
+          } catch {
+            // omit priceUsdtMilli on conversion failure
+          }
+        }
+      }
+      return result
     }
     throw new DistributorError(httpStatus, `Unknown distributor status: ${statusRaw}`)
   }
@@ -133,7 +165,7 @@ export function createG2Bulk(options: { baseUrl: string; apiKey: string; fetch?:
       return mapOrderPayload(body, res.status)
     },
 
-    async getBalance(): Promise<{ readonly balanceMinor: number }> {
+    async getBalance(): Promise<{ readonly balanceMilli: number }> {
       const res = await fetchImpl(`${baseUrl}/v1/getMe`, {
         method: "GET",
         headers: commonHeaders,
@@ -145,7 +177,7 @@ export function createG2Bulk(options: { baseUrl: string; apiKey: string; fetch?:
       const unwrapped = unwrapData(body)
       const p = (typeof unwrapped === "object" && unwrapped !== null ? unwrapped : body) as Record<string, unknown>
       const balance = typeof p.balance === "number" ? p.balance : Number(p.balance)
-      return { balanceMinor: usdToMinor(balance) }
+      return { balanceMilli: usdToMilli(balance) }
     },
   }
 }

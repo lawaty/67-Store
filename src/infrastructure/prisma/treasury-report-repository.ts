@@ -101,40 +101,40 @@ export function createPrismaTreasuryReportRepository(db: PrismaClient): Treasury
       const sinceDate = new Date(since.trim())
       const sinceDay = toUtcDayString(sinceDate)
 
-      const fundingQuery = `SELECT DATE_FORMAT(createdAt, '%Y-%m-%d') AS day, COALESCE(SUM(usdtMinor), 0) AS usdtMinor, COALESCE(SUM(egpPaidMinor), 0) AS basisEgpMinor FROM \`Funding\` GROUP BY day ORDER BY day`
-      const consumptionQuery = `SELECT DATE_FORMAT(createdAt, '%Y-%m-%d') AS day, COALESCE(SUM(usdtMinor), 0) AS usdtMinor, COALESCE(SUM(basisEgpMinor), 0) AS basisEgpMinor FROM \`TreasuryConsumption\` GROUP BY day ORDER BY day`
+      const fundingQuery = `SELECT DATE_FORMAT(createdAt, '%Y-%m-%d') AS day, COALESCE(SUM(usdtMilli), 0) AS usdtMilli, COALESCE(SUM(egpPaidMinor), 0) AS basisEgpMinor FROM \`Funding\` GROUP BY day ORDER BY day`
+      const consumptionQuery = `SELECT DATE_FORMAT(createdAt, '%Y-%m-%d') AS day, COALESCE(SUM(usdtMilli), 0) AS usdtMilli, COALESCE(SUM(basisEgpMinor), 0) AS basisEgpMinor FROM \`TreasuryConsumption\` GROUP BY day ORDER BY day`
 
       const fundingRows = (await db.$queryRawUnsafe(fundingQuery)) as Array<any>
       const consumptionRows = (await db.$queryRawUnsafe(consumptionQuery)) as Array<any>
 
-      const fundingByDay = new Map<string, { usdtMinor: number; basisEgpMinor: number }>()
+      const fundingByDay = new Map<string, { usdtMilli: number; basisEgpMinor: number }>()
       for (let i = 0; i < fundingRows.length; i++) {
         const r = fundingRows[i]
         const day = String(r.day)
         if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) {
           throw new RangeError()
         }
-        const usdtMinor = Number(r.usdtMinor)
+        const usdtMilli = Number(r.usdtMilli)
         const basisEgpMinor = Number(r.basisEgpMinor)
-        if (!Number.isSafeInteger(usdtMinor) || usdtMinor < 0 || !Number.isSafeInteger(basisEgpMinor) || basisEgpMinor < 0) {
+        if (!Number.isSafeInteger(usdtMilli) || usdtMilli < 0 || !Number.isSafeInteger(basisEgpMinor) || basisEgpMinor < 0) {
           throw new RangeError()
         }
-        fundingByDay.set(day, { usdtMinor, basisEgpMinor })
+        fundingByDay.set(day, { usdtMilli, basisEgpMinor })
       }
 
-      const consumptionByDay = new Map<string, { usdtMinor: number; basisEgpMinor: number }>()
+      const consumptionByDay = new Map<string, { usdtMilli: number; basisEgpMinor: number }>()
       for (let i = 0; i < consumptionRows.length; i++) {
         const r = consumptionRows[i]
         const day = String(r.day)
         if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) {
           throw new RangeError()
         }
-        const usdtMinor = Number(r.usdtMinor)
+        const usdtMilli = Number(r.usdtMilli)
         const basisEgpMinor = Number(r.basisEgpMinor)
-        if (!Number.isSafeInteger(usdtMinor) || usdtMinor < 0 || !Number.isSafeInteger(basisEgpMinor) || basisEgpMinor < 0) {
+        if (!Number.isSafeInteger(usdtMilli) || usdtMilli < 0 || !Number.isSafeInteger(basisEgpMinor) || basisEgpMinor < 0) {
           throw new RangeError()
         }
-        consumptionByDay.set(day, { usdtMinor, basisEgpMinor })
+        consumptionByDay.set(day, { usdtMilli, basisEgpMinor })
       }
 
       const allDaysSet = new Set<string>()
@@ -142,31 +142,38 @@ export function createPrismaTreasuryReportRepository(db: PrismaClient): Treasury
       for (const d of consumptionByDay.keys()) allDaysSet.add(d)
       const allDays = Array.from(allDaysSet).sort()
 
-      let accUsdt = 0
-      let accBasis = 0
+      let accFundingUsdt = 0
+      let accFundingBasis = 0
+      let accConsumedUsdt = 0
       const result: WacSeriesPoint[] = []
       for (let i = 0; i < allDays.length; i++) {
         const day = allDays[i]
         const f = fundingByDay.get(day)
         const c = consumptionByDay.get(day)
         if (f) {
-          accUsdt = accUsdt + f.usdtMinor
-          accBasis = accBasis + f.basisEgpMinor
+          accFundingUsdt = accFundingUsdt + f.usdtMilli
+          accFundingBasis = accFundingBasis + f.basisEgpMinor
         }
         if (c) {
-          accUsdt = accUsdt - c.usdtMinor
-          accBasis = accBasis - c.basisEgpMinor
+          accConsumedUsdt = accConsumedUsdt + c.usdtMilli
         }
-        if (!Number.isSafeInteger(accUsdt) || !Number.isSafeInteger(accBasis)) {
-          throw new RangeError()
-        }
-        if (accUsdt < 0 || accBasis < 0) {
+        const remainingUsdt = accFundingUsdt - accConsumedUsdt
+        if (
+          !Number.isSafeInteger(accFundingUsdt) ||
+          !Number.isSafeInteger(accFundingBasis) ||
+          !Number.isSafeInteger(accConsumedUsdt) ||
+          remainingUsdt < 0
+        ) {
           throw new RangeError()
         }
         if (day < sinceDay) {
           continue
         }
-        const wac = wacEgpMinor({ usdtMinor: accUsdt, basisEgpMinor: accBasis })
+        // WAC is funding-derived: a consumption-only day cannot move it.
+        const wac =
+          remainingUsdt === 0
+            ? 0
+            : wacEgpMinor({ usdtMilli: accFundingUsdt, basisEgpMinor: accFundingBasis })
         result.push(Object.freeze({ day, wacEgpMinor: wac }))
       }
       return result

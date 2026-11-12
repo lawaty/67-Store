@@ -15,11 +15,19 @@ describe("readEnv", () => {
       g2bulkBaseUrl: "https://api.example.com",
       g2bulkWebhookSecret: "webhook-secret",
       paymentMode: "instapay",
-      operationsMode: "sandbox",
       authSecret: "",
       adminPassword: "",
       jobsSecret: "",
       allowFakeFulfilment: false,
+      allowFakePayments: false,
+      paymobApiKey: "",
+      paymobPublicKey: "",
+      paymobIntegrationIdCard: "",
+      paymobIntegrationIdWallet: "",
+      paymobHmacSecret: "",
+      paymobSecretKey: "",
+      paymobBaseUrl: "https://accept.paymob.com",
+      appUrl: "",
     });
   });
 
@@ -83,7 +91,7 @@ describe("readEnv", () => {
         G2BULK_WEBHOOK_SECRET: "webhook-secret",
         PAYMENT_PROVIDER: "unknown",
       })
-    ).toThrow("PAYMENT_PROVIDER must be one of fake, instapay, crypto");
+    ).toThrow("PAYMENT_PROVIDER must be one of fake, instapay, crypto, paymob");
   });
 
   it("should default authSecret and adminPassword to empty when absent", () => {
@@ -119,28 +127,103 @@ describe("readEnv", () => {
       g2bulkBaseUrl: "https://api.example.com",
       g2bulkWebhookSecret: "webhook-secret",
       paymentMode: "instapay",
-      operationsMode: "sandbox",
       authSecret: "",
       adminPassword: "",
       jobsSecret: "",
       allowFakeFulfilment: false,
+      allowFakePayments: false,
+      paymobApiKey: "",
+      paymobPublicKey: "",
+      paymobIntegrationIdCard: "",
+      paymobIntegrationIdWallet: "",
+      paymobHmacSecret: "",
+      paymobSecretKey: "",
+      paymobBaseUrl: "https://accept.paymob.com",
+      appUrl: "",
     });
   });
 
-  it("should default OPERATIONS_MODE to sandbox", () => {
-    const env = readEnv({ G2BULK_API_KEY: "api-key" });
-
-    expect(env.operationsMode).toBe("sandbox");
+  it("should parse ALLOW_FAKE_PAYMENTS", () => {
+    expect(readEnv({ G2BULK_API_KEY: "k", ALLOW_FAKE_PAYMENTS: "true" }).allowFakePayments).toBe(true);
+    expect(readEnv({ G2BULK_API_KEY: "k" }).allowFakePayments).toBe(false);
+    expect(readEnv({ G2BULK_API_KEY: "k", ALLOW_FAKE_PAYMENTS: "false" }).allowFakePayments).toBe(false);
   });
 
-  it("should accept live and sandbox OPERATIONS_MODE", () => {
-    expect(readEnv({ G2BULK_API_KEY: "api-key", OPERATIONS_MODE: "live" }).operationsMode).toBe("live");
-    expect(readEnv({ G2BULK_API_KEY: "api-key", OPERATIONS_MODE: "sandbox" }).operationsMode).toBe("sandbox");
+  it("should accept paymob as PAYMENT_PROVIDER", () => {
+    const env = readEnv({ G2BULK_API_KEY: "api-key", PAYMENT_PROVIDER: "paymob" });
+    expect(env.paymentMode).toBe("paymob");
   });
 
-  it("should throw an error if OPERATIONS_MODE is unknown", () => {
+  it("should normalise uppercase PAYMOB to paymob", () => {
+    const env = readEnv({ G2BULK_API_KEY: "api-key", PAYMENT_PROVIDER: "PAYMOB" });
+    expect(env.paymentMode).toBe("paymob");
+  });
+
+  it("should strip trailing slash from APP_URL", () => {
+    const env = readEnv({
+      G2BULK_API_KEY: "api-key",
+      APP_URL: "https://67-store.online/",
+    });
+    expect(env.appUrl).toBe("https://67-store.online");
+  });
+
+  it("should default APP_URL to empty when absent or blank", () => {
+    expect(readEnv({ G2BULK_API_KEY: "api-key" }).appUrl).toBe("");
+    expect(readEnv({ G2BULK_API_KEY: "api-key", APP_URL: "" }).appUrl).toBe("");
+  });
+
+  it("should throw if APP_URL is non-empty and not absolute http(s)", () => {
     expect(() =>
-      readEnv({ G2BULK_API_KEY: "api-key", OPERATIONS_MODE: "unknown" })
-    ).toThrow("OPERATIONS_MODE must be one of live, sandbox");
+      readEnv({ G2BULK_API_KEY: "api-key", APP_URL: "67-store.online" })
+    ).toThrow("APP_URL must be an absolute http(s) URL");
+  });
+
+  it("should default all Paymob fields to empty when absent", () => {
+    const env = readEnv({ G2BULK_API_KEY: "api-key" });
+    expect(env.paymobApiKey).toBe("");
+    expect(env.paymobPublicKey).toBe("");
+    expect(env.paymobIntegrationIdCard).toBe("");
+    expect(env.paymobIntegrationIdWallet).toBe("");
+    expect(env.paymobHmacSecret).toBe("");
+    expect(env.paymobSecretKey).toBe("");
+  });
+
+  it("should read all Paymob fields from the env when present", () => {
+    const env = readEnv({
+      G2BULK_API_KEY: "api-key",
+      PAYMOB_API_KEY: "api",
+      PAYMOB_PUBLIC_KEY: "pub",
+      PAYMOB_INTEGRATION_ID_CARD: "card",
+      PAYMOB_INTEGRATION_ID_WALLET: "wallet",
+      PAYMOB_HMAC_SECRET: "hmac",
+      PAYMOB_SECRET_KEY: "secret",
+    });
+    expect(env.paymobApiKey).toBe("api");
+    expect(env.paymobPublicKey).toBe("pub");
+    expect(env.paymobIntegrationIdCard).toBe("card");
+    expect(env.paymobIntegrationIdWallet).toBe("wallet");
+    expect(env.paymobHmacSecret).toBe("hmac");
+    expect(env.paymobSecretKey).toBe("secret");
+  });
+
+  it("should read PAYMOB_SECRET_KEY when present and default to empty string", () => {
+    expect(readEnv({ G2BULK_API_KEY: "api-key" }).paymobSecretKey).toBe("");
+    expect(readEnv({ G2BULK_API_KEY: "api-key", PAYMOB_SECRET_KEY: " secret " }).paymobSecretKey).toBe("secret");
+  });
+
+  it("should default PAYMOB_BASE_URL to https://accept.paymob.com", () => {
+    expect(readEnv({ G2BULK_API_KEY: "api-key" }).paymobBaseUrl).toBe("https://accept.paymob.com");
+  });
+
+  it('should strip trailing slash from PAYMOB_BASE_URL "https://accept.paymob.com/"', () => {
+    expect(
+      readEnv({ G2BULK_API_KEY: "api-key", PAYMOB_BASE_URL: "https://accept.paymob.com/" }).paymobBaseUrl
+    ).toBe("https://accept.paymob.com");
+  });
+
+  it('should throw if PAYMOB_BASE_URL="accept.paymob.com" with the new message', () => {
+    expect(() =>
+      readEnv({ G2BULK_API_KEY: "api-key", PAYMOB_BASE_URL: "accept.paymob.com" })
+    ).toThrow("PAYMOB_BASE_URL must be an absolute http(s) URL");
   });
 });

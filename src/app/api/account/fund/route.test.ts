@@ -46,7 +46,7 @@ beforeEach(() => {
   startWalletFundingMock.mockResolvedValue({
     ok: true,
     funding: {},
-    redirectUrl: "/checkout/fake/fake_instapay_fund_f1",
+    redirectUrl: "/checkout/fake/fake_paymob_fund_f1",
   })
 })
 
@@ -123,7 +123,7 @@ describe("POST /api/account/fund", () => {
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({
       ok: true,
-      redirectUrl: "/checkout/fake/fake_instapay_fund_f1",
+      redirectUrl: "/checkout/fake/fake_paymob_fund_f1",
     })
     expect(startWalletFundingMock).toHaveBeenCalledWith({
       clientId: "c1",

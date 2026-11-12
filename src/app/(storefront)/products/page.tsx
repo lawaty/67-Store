@@ -19,12 +19,21 @@ type Product = StorefrontProductDto
 
 export default async function Page() {
   const locale = await getLocale()
-  const { products, defaultMethod } = await (await serverApi()).get<StorefrontDto>("/api/storefront")
+  const { products, defaultMethod, gateways } = await (await serverApi()).get<StorefrontDto>("/api/storefront")
   const { diamonds, bundles } = partitionProducts(products)
   const preferred = await readPreferredMethod()
   const method = preferred ?? defaultMethod
   const best = bestValueDiamond(diamonds)
   const currency = t(locale, "common.currency")
+  const paymobEnabled = gateways.card || gateways.wallet
+  const coinsEnabled = gateways.coins
+  const cryptoEnabled = gateways.crypto
+  const offeredMethodIds = [
+    ...(paymobEnabled ? ["paymob" as const] : []),
+    ...(coinsEnabled ? ["coins" as const] : []),
+    ...(cryptoEnabled ? ["crypto" as const] : []),
+  ]
+  const selectedMethod = offeredMethodIds.includes(method) ? method : (offeredMethodIds[0] ?? method)
 
   const card = (product: Product) => {
     const isDiamond = product.isDiamond
@@ -36,29 +45,23 @@ export default async function Page() {
         ? t(locale, "home.fundingGap", { amount: (product.fundingGapMinor / 100).toFixed(2) })
         : t(locale, "home.unavailableUnknown")
       : undefined
-    const egp = priceFor(product, "instapay", currency)
-    const usdt = priceFor(product, "crypto", currency)
+    const egp = priceFor(product, "paymob", currency)
     const coins = priceFor(product, "coins", currency)
-    const methods: ProductMethodOption[] = [
-      {
-        id: "instapay",
+    const crypto = priceFor(product, "crypto", currency)
+    const methods: ProductMethodOption[] = []
+    if (paymobEnabled) {
+      methods.push({
+        id: "paymob",
         label: t(locale, "home.methodInstapay"),
-        href: topupPath(product.name, "instapay"),
+        href: topupPath(product.name, "paymob"),
         price: egp.price,
         disabled: !product.buyable || !product.directPayAvailable,
         reason: unavailableText,
         fundingGapMinor: product.buyable ? undefined : product.fundingGapMinor,
-      },
-      {
-        id: "crypto",
-        label: t(locale, "home.methodCrypto"),
-        href: topupPath(product.name, "crypto"),
-        price: usdt.price,
-        disabled: !product.buyable || !product.directPayAvailable,
-        reason: unavailableText,
-        fundingGapMinor: product.buyable ? undefined : product.fundingGapMinor,
-      },
-      {
+      })
+    }
+    if (coinsEnabled) {
+      methods.push({
         id: "coins",
         label: t(locale, "home.methodCoins"),
         href: topupPath(product.name, "coins"),
@@ -67,8 +70,19 @@ export default async function Page() {
         disabled: !product.buyable,
         reason: unavailableText,
         fundingGapMinor: product.buyable ? undefined : product.fundingGapMinor,
-      },
-    ]
+      })
+    }
+    if (cryptoEnabled) {
+      methods.push({
+        id: "crypto",
+        label: t(locale, "home.methodCrypto"),
+        href: topupPath(product.name, "crypto"),
+        price: crypto.price,
+        disabled: !product.buyable || !product.directPayAvailable,
+        reason: unavailableText,
+        fundingGapMinor: product.buyable ? undefined : product.fundingGapMinor,
+      })
+    }
 
     return (
       <li className={`card relative overflow-hidden ${isBest ? "border-ember/40" : ""}`} key={product.id}>
@@ -95,7 +109,7 @@ export default async function Page() {
           ) : null}
           <p className="card-desc mt-2">{isDiamond ? t(locale, "home.deliveryDiamond") : t(locale, "home.deliveryPack")}</p>
         </div>
-          <ProductMethods options={methods} defaultId={method} label={t(locale, "home.paymentMethod")} ctaLabel={t(locale, "home.continue")} />
+          <ProductMethods options={methods} defaultId={selectedMethod} label={t(locale, "home.paymentMethod")} ctaLabel={t(locale, "home.continue")} />
       </li>
     )
   }

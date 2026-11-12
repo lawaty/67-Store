@@ -1,7 +1,7 @@
 /**
  * Centralises route paths and payment method mapping/slug helpers for store URLs.
  */
-export const METHODS = ["instapay", "crypto", "coins"] as const
+export const METHODS = ["paymob", "crypto", "coins"] as const
 
 export type UrlMethod = (typeof METHODS)[number]
 
@@ -16,13 +16,13 @@ export function slugify(name: string): string {
 }
 
 export function methodToForm(method: UrlMethod): FormMethod {
-  if (method === "instapay") return "egp"
+  if (method === "paymob") return "egp"
   if (method === "crypto") return "usdt"
   return "coins"
 }
 
 export function formToMethod(method: string): UrlMethod {
-  if (method === "egp") return "instapay"
+  if (method === "egp") return "paymob"
   if (method === "usdt") return "crypto"
   return "coins"
 }

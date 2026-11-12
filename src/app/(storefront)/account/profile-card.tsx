@@ -17,7 +17,9 @@ export function ProfileCard({
   locale: Locale
   actions?: ReactNode
 }) {
-  const initial = (profile.playerName ?? profile.label).trim().charAt(0).toUpperCase() || "?"
+  const fallbackLabel = `${profile.game.toUpperCase()} · ${profile.userId}/${profile.serverId}`
+  const displayName = profile.playerName ?? fallbackLabel
+  const initial = displayName.trim().charAt(0).toUpperCase() || "?"
 
   return (
     <article className="player-card card-lift">
@@ -27,9 +29,9 @@ export function ProfileCard({
         </span>
         <div className="min-w-0 flex-1">
           <p className="card-kicker">{profile.game === "mlbb" ? "MLBB" : profile.game.toUpperCase()}</p>
-          <h3 className="player-name truncate">{profile.playerName ?? profile.label}</h3>
-          {profile.playerName !== null && profile.playerName !== profile.label ? (
-            <p className="card-desc truncate">{profile.label}</p>
+          <h3 className="player-name truncate">{displayName}</h3>
+          {profile.playerName !== null ? (
+            <p className="card-desc truncate">{fallbackLabel}</p>
           ) : null}
           <div className="player-meta mt-2">
             <span className="hud-chip">

@@ -4,8 +4,9 @@
 import { adminGet } from "@/frontend/admin"
 import type { AdminUserPageDto } from "@/api/contracts"
 import { Icon } from "@/app/icons"
-import { adjustWallet } from "./actions"
-import { SubmitButton } from "@/app/submit-button"
+import { ClickableCard, ClickableRow } from "../../clickable-row"
+import { WalletAdjustModal } from "./wallet-adjust-modal"
+import { Avatar } from "@/app/avatar"
 
 export const dynamic = "force-dynamic"
 
@@ -32,22 +33,6 @@ function mapError(code: string) {
     default:
       return "حصل خطأ أثناء تعديل الرصيد."
   }
-}
-
-function AdjustForm({ clientId, accountId }: { clientId: string; accountId: string }) {
-  return (
-    <form action={adjustWallet} className="mt-2 grid min-w-56 gap-2 rounded-xl border border-line bg-raised/50 p-3">
-      <input type="hidden" name="clientId" value={clientId} />
-      <input type="hidden" name="accountId" value={accountId} />
-      <input type="hidden" name="returnTo" value="users" />
-      <input className="input" name="amount" type="number" min={1} step={1} required placeholder="عدد العملات" />
-      <input className="input" name="reason" required placeholder="السبب" />
-      <div className="flex gap-2">
-        <SubmitButton name="direction" value="credit" className="btn btn-primary btn-sm flex-1">إضافة</SubmitButton>
-        <SubmitButton name="direction" value="debit" className="btn btn-ghost btn-sm flex-1">خصم</SubmitButton>
-      </div>
-    </form>
-  )
 }
 
 export default async function UsersPage({
@@ -85,7 +70,7 @@ export default async function UsersPage({
             <table className="table">
               <thead>
                 <tr>
-                  <th>البريد الإلكتروني</th>
+                  <th>المستخدم</th>
                   <th>الرصيد</th>
                   <th>تاريخ الإنشاء</th>
                   <th />
@@ -93,23 +78,24 @@ export default async function UsersPage({
               </thead>
               <tbody>
                 {rows.map((row) => (
-                  <tr key={row.id}>
+                  <ClickableRow key={row.id} href={`/management/users/${row.id}`}>
                     <td>
-                      <p className="font-semibold text-ink">{row.email}</p>
-                      <p className="num text-xs text-muted">{row.clientId}</p>
+                      <div className="flex items-center gap-2">
+                        <Avatar name={row.username} size="sm" />
+                        <div>
+                          <p className="font-semibold text-ink">{row.username}</p>
+                          <p className="text-sm text-muted">{row.email}</p>
+                        </div>
+                      </div>
                     </td>
                     <td><span className="num font-bold text-ink">{row.coinBalance}</span></td>
                     <td><span className="num text-sm text-muted">{formatDate(row.createdAt)}</span></td>
                     <td>
                       <div className="flex flex-wrap items-center gap-2">
-                        <a className="btn btn-ghost btn-sm" href={`/management/users/${row.id}`}>إدارة</a>
-                        <details>
-                          <summary className="btn btn-ghost btn-sm cursor-pointer list-none">تعديل الرصيد</summary>
-                          <AdjustForm clientId={row.clientId} accountId={row.id} />
-                        </details>
+                        <WalletAdjustModal clientId={row.clientId} accountId={row.id} returnTo="users" />
                       </div>
                     </td>
-                  </tr>
+                  </ClickableRow>
                 ))}
               </tbody>
             </table>
@@ -117,10 +103,13 @@ export default async function UsersPage({
 
           <div className="table-cards mt-4">
             {rows.map((row) => (
-              <article key={row.id} className="rounded-2xl border border-line bg-surface p-4 shadow-e1">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-bold text-ink">{row.email}</p>
-                  <p className="num text-xs text-muted">{row.clientId}</p>
+              <ClickableCard key={row.id} href={`/management/users/${row.id}`} className="block cursor-pointer rounded-2xl border border-line bg-surface p-4 shadow-e1">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Avatar name={row.username} size="sm" />
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold text-ink">{row.username}</p>
+                    <p className="truncate text-sm text-muted">{row.email}</p>
+                  </div>
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   <div className="rounded-xl border border-line bg-raised/50 p-2.5">
@@ -133,13 +122,9 @@ export default async function UsersPage({
                   </div>
                 </div>
                 <div className="mt-3 flex flex-wrap items-start gap-2">
-                  <a className="btn btn-ghost btn-sm" href={`/management/users/${row.id}`}>إدارة</a>
-                  <details className="flex-1">
-                    <summary className="btn btn-ghost btn-sm w-full cursor-pointer list-none">تعديل الرصيد</summary>
-                    <AdjustForm clientId={row.clientId} accountId={row.id} />
-                  </details>
+                  <WalletAdjustModal clientId={row.clientId} accountId={row.id} returnTo="users" />
                 </div>
-              </article>
+              </ClickableCard>
             ))}
           </div>
         </>

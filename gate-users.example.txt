@@ -1,0 +1,8 @@
+# Access gate credentials — one "username:password" per line.
+# '#' starts a comment. Blank lines are ignored.
+# Edit this list and save: changes take effect on the next request (no restart).
+# Keep the real file (gate-users.txt) private: it is git-ignored and chmod 600.
+#
+# Example:
+# alice:correct-horse-battery-staple
+# bob:another-long-password

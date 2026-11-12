@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest"
+import { beforeEach, describe, it, expect } from "vitest"
 import { PrismaClient } from "@prisma/client"
 import { createContainer } from "./container"
 import { readEnv } from "./env"
@@ -7,6 +7,14 @@ import { player } from "@/ordering"
 import { order } from "@/ordering"
 import { client } from "@/accounts"
 import { money } from "./shared/money"
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+
+beforeEach(() => {
+  process.env.FAKE_PAYMENTS_FILE = "/nonexistent/fake-payments"
+  process.env.FAKE_FULFILMENT_FILE = "/nonexistent/fake-fulfilment"
+})
 
 function createMemoryDb(initialSettings: Record<string, string> = {}) {
   const settingsStore = new Map<string, string>(Object.entries(initialSettings))
@@ -15,8 +23,8 @@ function createMemoryDb(initialSettings: Record<string, string> = {}) {
     { id: string; game: string; distributorId: string; name: string; costMinor: number; currency: string; active: boolean; syncedAt: Date }
   >()
   const costHistory: Array<{ productId: string; costMinor: number; currency: string; recordedAt: Date }> = []
-  const fundingStore: Array<{ id: string; egpPaidMinor: number; usdtMinor: number; createdAt: Date }> = []
-  const consumptionStore: Array<{ id: string; orderId: string; usdtMinor: number; basisEgpMinor: number; wacEgpMinor: number; createdAt: Date }> = []
+  const fundingStore: Array<{ id: string; egpPaidMinor: number; usdtMilli: number; createdAt: Date }> = []
+  const consumptionStore: Array<{ id: string; orderId: string; usdtMilli: number; basisEgpMinor: number; wacEgpMinor: number; createdAt: Date }> = []
   const reconciliationStore: Array<{ id: string; expectedUsdtMinor: number; supplierUsdtMinor: number; gapUsdtMinor: number; status: string; createdAt: Date }> = []
   const walletStore = new Map<string, { id: string; clientId: string; coinBalance: number }>()
   const paymentStore = new Map<string, { id: string; orderId: string; provider: string; providerReference: string; amountMinor: number; currency: string; status: string }>()
@@ -102,7 +110,7 @@ function createMemoryDb(initialSettings: Record<string, string> = {}) {
     },
     aggregate: async () => ({
       _sum: {
-        usdtMinor: fundingStore.reduce((s, r) => s + r.usdtMinor, 0),
+        usdtMilli: fundingStore.reduce((s, r) => s + r.usdtMilli, 0),
         egpPaidMinor: fundingStore.reduce((s, r) => s + r.egpPaidMinor, 0),
       },
     }),
@@ -133,7 +141,7 @@ function createMemoryDb(initialSettings: Record<string, string> = {}) {
       }
       return {
         _sum: {
-          usdtMinor: rows.reduce((s, r) => s + r.usdtMinor, 0),
+          usdtMilli: rows.reduce((s, r) => s + r.usdtMilli, 0),
           basisEgpMinor: rows.reduce((s, r) => s + r.basisEgpMinor, 0),
         },
       }
@@ -220,6 +228,11 @@ function createMemoryDb(initialSettings: Record<string, string> = {}) {
     findUnique: async (args: any) => {
       const row = paymentStore.get(args.where.providerReference)
       return row ? { ...row } : null
+    },
+    findMany: async (args: any) => {
+      let rows = Array.from(paymentStore.values()).map((r) => ({ ...r }))
+      if (args?.where?.orderId !== undefined) rows = rows.filter((r) => r.orderId === args.where.orderId)
+      return rows
     },
     update: async (args: any) => {
       const row = paymentStore.get(args.where.providerReference)
@@ -328,6 +341,7 @@ describe("createContainer", () => {
     expect(container.syncCatalogue).toBeDefined()
     expect(container.placeOrder).toBeDefined()
     expect(container.startPayment).toBeDefined()
+    expect(container.paymentProviderAvailable).toBeDefined()
     expect(container.confirmPayment).toBeDefined()
     expect(container.fulfilOrder).toBeDefined()
     expect(container.syncFulfilment).toBeDefined()
@@ -365,7 +379,7 @@ describe("createContainer", () => {
     const container = createContainer(readEnv({ G2BULK_API_KEY: "k" }), stubDb)
     const funding = await container.treasury.recordFunding({
       egpPaidMinor: 100,
-      usdtMinor: 100,
+      usdtMilli: 1000,
     })
     expect(Number.isNaN(new Date(funding.createdAt).getTime())).toBe(false)
     // and it must not be a UUID-shaped value
@@ -373,55 +387,35 @@ describe("createContainer", () => {
   })
 })
 
-describe("createContainer operations mode", () => {
-  it("defaults to sandbox when no setting is stored (env default is sandbox)", async () => {
-    const { db } = createMemoryDb()
-    const container = createContainer(readEnv({ G2BULK_API_KEY: "k" }), db)
-    await expect(container.operationsMode()).resolves.toBe("sandbox")
-  })
+describe("createContainer fulfilment fake flag", () => {
+  it("uses the fake distributor for place/get when fake-fulfilment is on", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "fake-fulfilment-"))
+    const file = join(dir, "flag")
+    writeFileSync(file, "true")
+    const previous = process.env.FAKE_FULFILMENT_FILE
+    process.env.FAKE_FULFILMENT_FILE = file
+    try {
+      const { db } = createMemoryDb()
+      const container = createContainer(readEnv({ G2BULK_API_KEY: "k" }), db)
+      const item = product({
+        id: "mlbb:fake-86",
+        distributorId: "fake-86",
+        name: "86 جوهرة",
+        cost: money(99, "USD"),
+        game: "mlbb",
+      })
 
-  it("returns live when the settings store holds operations:mode = live", async () => {
-    const { db } = createMemoryDb({ "operations:mode": "live" })
-    const container = createContainer(readEnv({ G2BULK_API_KEY: "k" }), db)
-    await expect(container.operationsMode()).resolves.toBe("live")
-  })
-})
-
-describe("createContainer sandbox adapters", () => {
-  it("distributor uses the fake in sandbox", async () => {
-    const { db } = createMemoryDb()
-    const container = createContainer(readEnv({ G2BULK_API_KEY: "k" }), db)
-    const item = product({
-      id: "mlbb:fake-86",
-      distributorId: "fake-86",
-      name: "86 جوهرة",
-      cost: money(99, "USD"),
-      game: "mlbb",
-    })
-
-    await expect(
-      container.distributor.placeOrder({ orderId: "o1", game: "mlbb", product: item, player: player("123", "456") }),
-    ).resolves.toEqual({ distributorOrderId: "fake-o1", status: "COMPLETED" })
-    await expect(container.distributor.getBalance()).resolves.toEqual({ balanceMinor: 99_999_999 })
-    await expect(container.distributor.checkPlayer({ game: "mlbb", player: player("123", "456") })).resolves.toEqual({
-      valid: true,
-      name: "لاعب تجريبي",
-    })
-  })
-
-  it("catalogue sync in sandbox stores the four fake mlbb products", async () => {
-    const { db } = createMemoryDb()
-    const container = createContainer(readEnv({ G2BULK_API_KEY: "k" }), db)
-
-    await expect(container.syncCatalogue("mlbb")).resolves.toMatchObject({ synced: 4 })
-    const all = await container.products.listAll("mlbb")
-    expect(all.map((p) => p.id).sort()).toEqual([
-      "mlbb:fake-172",
-      "mlbb:fake-257",
-      "mlbb:fake-706",
-      "mlbb:fake-86",
-    ])
-    await expect(container.checkPrice(all[0])).resolves.toEqual({ status: "ok" })
+      await expect(
+        container.distributor.placeOrder({ orderId: "o1", game: "mlbb", product: item, player: player("123", "456") }),
+      ).resolves.toEqual({ distributorOrderId: "fake-o1", status: "COMPLETED" })
+      await expect(
+        container.distributor.getOrder({ distributorOrderId: "d1", game: "mlbb" }),
+      ).resolves.toEqual({ distributorOrderId: "d1", status: "COMPLETED" })
+    } finally {
+      if (previous === undefined) delete process.env.FAKE_FULFILMENT_FILE
+      else process.env.FAKE_FULFILMENT_FILE = previous
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })
 
@@ -437,6 +431,7 @@ describe("createContainer payment mode dispatch", () => {
     return order({
       id: "o1",
       token: "t1",
+      profileId: "p1",
       client: client("c1"),
       product: item,
       player: player("1", "2"),
@@ -447,54 +442,251 @@ describe("createContainer payment mode dispatch", () => {
   }
 
   it("rejects live startPayment when paymentMode is fake", async () => {
-    const { db } = createMemoryDb({ "operations:mode": "live" })
+    const { db } = createMemoryDb()
     const container = createContainer(readEnv({ G2BULK_API_KEY: "k" }), db)
     await expect(
-      container.startPayment({ order: awaitingOrder(), provider: "INSTAPAY", returnUrl: "/order/t1" }),
+      container.startPayment({ order: awaitingOrder(), provider: "PAYMOB", returnUrl: "/order/t1" }),
     ).rejects.toThrow("Payment provider fake is not configured for live mode")
   })
 
   it("rejects live startPayment with the paymentMode when it is not fake", async () => {
-    const { db } = createMemoryDb({ "operations:mode": "live" })
+    const { db } = createMemoryDb()
     const container = createContainer(readEnv({ G2BULK_API_KEY: "k", PAYMENT_PROVIDER: "instapay" }), db)
     await expect(
-      container.startPayment({ order: awaitingOrder(), provider: "INSTAPAY", returnUrl: "/order/t1" }),
+      container.startPayment({ order: awaitingOrder(), provider: "PAYMOB", returnUrl: "/order/t1" }),
     ).rejects.toThrow("Payment provider instapay is not configured")
   })
 
-  it("charges through the fake in sandbox", async () => {
+  it("charges through the fake when fake-payments is on", async () => {
     const { db } = createMemoryDb()
-    const container = createContainer(readEnv({ G2BULK_API_KEY: "k" }), db)
+    const container = createContainer(readEnv({ G2BULK_API_KEY: "k", ALLOW_FAKE_PAYMENTS: "true" }), db)
     const result = await container.startPayment({
       order: awaitingOrder(),
-      provider: "INSTAPAY",
+      provider: "PAYMOB",
       returnUrl: "/order/t1",
     })
-    expect(result.payment.providerReference).toBe("fake_instapay_o1")
-    expect(result.redirectUrl).toBe("/checkout/fake/fake_instapay_o1")
+    expect(result.payment.providerReference).toBe("fake_paymob_o1")
+    expect(result.redirectUrl).toBe("/checkout/fake/fake_paymob_o1")
     expect(result.payment.status).toBe("PENDING")
+  })
+
+  it("charges through the fake in live when ALLOW_FAKE_PAYMENTS is true", async () => {
+    const { db } = createMemoryDb()
+    const container = createContainer(readEnv({ G2BULK_API_KEY: "k", ALLOW_FAKE_PAYMENTS: "true" }), db)
+    const result = await container.startPayment({
+      order: awaitingOrder(),
+      provider: "PAYMOB",
+      returnUrl: "/order/t1",
+    })
+    expect(result.payment.providerReference).toBe("fake_paymob_o1")
+    expect(result.redirectUrl).toBe("/checkout/fake/fake_paymob_o1")
+    expect(result.payment.status).toBe("PENDING")
+  })
+
+  it("fakePaymentsEnabled follows the fake-payments flag", async () => {
+    const off = createContainer(readEnv({ G2BULK_API_KEY: "k" }), createMemoryDb().db)
+    await expect(off.fakePaymentsEnabled()).resolves.toBe(false)
+
+    const on = createContainer(readEnv({ G2BULK_API_KEY: "k", ALLOW_FAKE_PAYMENTS: "true" }), createMemoryDb().db)
+    await expect(on.fakePaymentsEnabled()).resolves.toBe(true)
+  })
+
+  it("paymentProviderAvailable follows the fake-payments flag", async () => {
+    const off = createContainer(readEnv({ G2BULK_API_KEY: "k" }), createMemoryDb().db)
+    await expect(off.paymentProviderAvailable("PAYMOB")).resolves.toBe(false)
+
+    const on = createContainer(readEnv({ G2BULK_API_KEY: "k", ALLOW_FAKE_PAYMENTS: "true" }), createMemoryDb().db)
+    await expect(on.paymentProviderAvailable("PAYMOB")).resolves.toBe(true)
   })
 })
 
-describe("createContainer sandbox balance bypass", () => {
-  it("startWalletFunding with an empty treasury succeeds in sandbox and records a PENDING funding", async () => {
+describe("createContainer wallet funding coverage", () => {
+  it("startWalletFunding with an empty treasury fails coverage", async () => {
     const { db } = createMemoryDb()
-    const container = createContainer(readEnv({ G2BULK_API_KEY: "k" }), db)
-    const result = await container.startWalletFunding({ clientId: "c1", currency: "EGP", amountMinor: 10000 })
-    expect(result.ok).toBe(true)
-    if (result.ok) {
-      expect(result.funding.status).toBe("PENDING")
-      expect(result.redirectUrl).toBe(`/checkout/fake/${result.funding.providerReference}`)
-      const stored = await container.walletFundings.findByReference(result.funding.providerReference)
-      expect(stored?.status).toBe("PENDING")
-    }
-  })
-
-  it("startWalletFunding with an empty treasury fails coverage in live", async () => {
-    const { db } = createMemoryDb({ "operations:mode": "live" })
     const container = createContainer(readEnv({ G2BULK_API_KEY: "k" }), db)
     await expect(
       container.startWalletFunding({ clientId: "c1", currency: "EGP", amountMinor: 10000 }),
     ).resolves.toEqual({ ok: false, error: "coverage" })
+  })
+})
+
+describe("createContainer paymob live provider", () => {
+  it("reports PAYMOB available and others unavailable when paymob is configured in live mode", async () => {
+    const { db } = createMemoryDb()
+    const container = createContainer(
+      readEnv({
+        G2BULK_API_KEY: "k",
+        PAYMENT_PROVIDER: "paymob",
+        ALLOW_FAKE_PAYMENTS: "false",
+        PAYMOB_SECRET_KEY: "sk",
+        PAYMOB_PUBLIC_KEY: "pk",
+        PAYMOB_INTEGRATION_ID_CARD: "123",
+        APP_URL: "https://app.example.com",
+      }),
+      db,
+    )
+    await expect(container.paymentProviderAvailable("PAYMOB")).resolves.toBe(true)
+    await expect(container.paymentProviderAvailable("CRYPTO")).resolves.toBe(false)
+    await expect(container.paymentProviderAvailable("COINS")).resolves.toBe(false)
+  })
+
+  it("reports PAYMOB unavailable when PAYMOB_SECRET_KEY is empty", async () => {
+    const { db } = createMemoryDb()
+    const container = createContainer(
+      readEnv({
+        G2BULK_API_KEY: "k",
+        PAYMENT_PROVIDER: "paymob",
+        ALLOW_FAKE_PAYMENTS: "false",
+        PAYMOB_SECRET_KEY: "",
+        PAYMOB_PUBLIC_KEY: "pk",
+        PAYMOB_INTEGRATION_ID_CARD: "123",
+        APP_URL: "https://app.example.com",
+      }),
+      db,
+    )
+    await expect(container.paymentProviderAvailable("PAYMOB")).resolves.toBe(false)
+  })
+
+  it("reports PAYMOB unavailable when all integration ids are empty", async () => {
+    const { db } = createMemoryDb()
+    const container = createContainer(
+      readEnv({
+        G2BULK_API_KEY: "k",
+        PAYMENT_PROVIDER: "paymob",
+        ALLOW_FAKE_PAYMENTS: "false",
+        PAYMOB_SECRET_KEY: "sk",
+        PAYMOB_PUBLIC_KEY: "pk",
+        PAYMOB_INTEGRATION_ID_CARD: "",
+        PAYMOB_INTEGRATION_ID_WALLET: "",
+        APP_URL: "https://app.example.com",
+      }),
+      db,
+    )
+    await expect(container.paymentProviderAvailable("PAYMOB")).resolves.toBe(false)
+  })
+
+  it("reports PAYMOB unavailable when APP_URL is empty", async () => {
+    const { db } = createMemoryDb()
+    const container = createContainer(
+      readEnv({
+        G2BULK_API_KEY: "k",
+        PAYMENT_PROVIDER: "paymob",
+        ALLOW_FAKE_PAYMENTS: "false",
+        PAYMOB_SECRET_KEY: "sk",
+        PAYMOB_PUBLIC_KEY: "pk",
+        PAYMOB_INTEGRATION_ID_CARD: "123",
+        APP_URL: "",
+      }),
+      db,
+    )
+    await expect(container.paymentProviderAvailable("PAYMOB")).resolves.toBe(false)
+  })
+
+  it("uses fake rails for paymob when fake-payments is on", async () => {
+    const { db } = createMemoryDb()
+    const container = createContainer(
+      readEnv({
+        G2BULK_API_KEY: "k",
+        ALLOW_FAKE_PAYMENTS: "true",
+        PAYMENT_PROVIDER: "paymob",
+        PAYMOB_SECRET_KEY: "sk",
+        PAYMOB_PUBLIC_KEY: "pk",
+        PAYMOB_INTEGRATION_ID_CARD: "123",
+        APP_URL: "https://app.example.com",
+      }),
+      db,
+    )
+    const item = product({
+      id: "mlbb:fake-86",
+      distributorId: "fake-86",
+      name: "86 جوهرة",
+      cost: money(99, "USD"),
+      game: "mlbb",
+    })
+    const awaiting = order({
+      id: "o1",
+      token: "t1",
+      profileId: "p1",
+      client: client("c1"),
+      product: item,
+      player: player("1", "2"),
+      price: money(12000, "USD"),
+      status: "AWAITING_PAYMENT",
+      markupBasisPoints: 2000,
+    })
+    await expect(container.paymentProviderAvailable("PAYMOB")).resolves.toBe(true)
+    const result = await container.startPayment({
+      order: awaiting,
+      provider: "PAYMOB",
+      returnUrl: "/order/t1",
+    })
+    expect(result.payment.providerReference).toBe("fake_paymob_o1")
+  })
+
+  it("honours gateway toggles per call for provider availability", async () => {
+    const { db, settingsStore } = createMemoryDb()
+    const container = createContainer(
+      readEnv({
+        G2BULK_API_KEY: "k",
+        PAYMENT_PROVIDER: "paymob",
+        ALLOW_FAKE_PAYMENTS: "false",
+        PAYMOB_SECRET_KEY: "sk",
+        PAYMOB_PUBLIC_KEY: "pk",
+        PAYMOB_INTEGRATION_ID_CARD: "123",
+        APP_URL: "https://app.example.com",
+      }),
+      db,
+    )
+    await expect(container.paymentProviderAvailable("PAYMOB")).resolves.toBe(true)
+    settingsStore.set("gateway:card:enabled", "false")
+    settingsStore.set("gateway:wallet:enabled", "false")
+    await expect(container.paymentProviderAvailable("PAYMOB")).resolves.toBe(false)
+  })
+
+  it("reports PAYMOB unavailable when both card and wallet toggles are off even if configured", async () => {
+    const { db } = createMemoryDb({
+      "gateway:card:enabled": "false",
+      "gateway:wallet:enabled": "false",
+    })
+    const container = createContainer(
+      readEnv({
+        G2BULK_API_KEY: "k",
+        PAYMENT_PROVIDER: "paymob",
+        ALLOW_FAKE_PAYMENTS: "false",
+        PAYMOB_SECRET_KEY: "sk",
+        PAYMOB_PUBLIC_KEY: "pk",
+        PAYMOB_INTEGRATION_ID_CARD: "123",
+        PAYMOB_INTEGRATION_ID_WALLET: "456",
+        APP_URL: "https://app.example.com",
+      }),
+      db,
+    )
+    await expect(container.paymentProviderAvailable("PAYMOB")).resolves.toBe(false)
+  })
+
+  it("fulfilOrder returns input without fulfilling when fulfilment is disabled", async () => {
+    const { db } = createMemoryDb({ "fulfilment:enabled": "false" })
+    const container = createContainer(readEnv({ G2BULK_API_KEY: "k" }), db)
+    const item = product({
+      id: "mlbb:fake-86",
+      distributorId: "fake-86",
+      name: "86 جوهرة",
+      cost: money(99, "USD"),
+      game: "mlbb",
+    })
+    const paid = order({
+      id: "o1",
+      token: "t1",
+      profileId: "p1",
+      client: client("c1"),
+      product: item,
+      player: player("1", "2"),
+      price: money(12000, "USD"),
+      status: "PAID",
+      markupBasisPoints: 2000,
+      paymentReference: "ref",
+    })
+    const result = await container.fulfilOrder(paid)
+    expect(result).toBe(paid)
   })
 })

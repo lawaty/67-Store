@@ -4,12 +4,13 @@
  */
 
 import type { Container } from "@/container"
-import type { AccountDto, AccountLevelDto, ProfileDto } from "./contracts"
+import type { AccountAchievementDto, AccountDto, AccountLevelDto, ProfileDto } from "./contracts"
 import { presentProfile } from "./storefront"
 import {
   player,
   readQualifyingVolume,
   readVipLevels,
+  recordAchievements,
   recordLevelAchievements,
   resolveClientMarkup,
   type Level,
@@ -30,7 +31,7 @@ export type AccountViewer = {
 }
 
 export type ProfileInput = {
-  readonly label: string
+  
   readonly game: string
   readonly userId: string
   readonly serverId: string
@@ -49,10 +50,13 @@ function toLevelDto(level: Level): AccountLevelDto {
 
 export async function readAccount(c: Container, viewer: AccountViewer): Promise<AccountDto | null> {
   const client = await c.clients.findById(viewer.clientId)
+    if (client === null) return null
+    const account = await c.accounts.findById(viewer.accountId)
+    if (account === null) return null
   if (client === null) return null
 
   const now = new Date()
-  const [orders, wallet, entries, profiles, levels, volume30d, preferences] = await Promise.all([
+  const [orders, wallet, entries, profiles, levels, volume30d, preferences, recordedAchievements] = await Promise.all([
     c.orders.listByClient(viewer.clientId, 20),
     c.wallets.getOrCreate(viewer.clientId),
     c.wallets.listEntries(viewer.clientId, 10),
@@ -60,19 +64,70 @@ export async function readAccount(c: Container, viewer: AccountViewer): Promise<
     readVipLevels(c.settings, "mlbb"),
     readQualifyingVolume(c.activity, viewer.clientId, now),
     c.accounts.listPreferences(viewer.accountId),
+    recordAchievements(
+      { ...c.achievements, countByClient: (clientId, since) => c.orders.countByClient(clientId, since) },
+      viewer.clientId,
+      now,
+    ),
   ])
 
   const earnedBadges = await recordLevelAchievements(c.levelAchievements, viewer.clientId, levels, volume30d, now)
   const progress = levelProgress(levels, volume30d)
+
+  const achievements: AccountAchievementDto[] = levels.map((level) => {
+    const earned = earnedBadges.some((badge) => badge.levelKey === level.key)
+    return {
+      key: `level:${level.key}`,
+      source: "level",
+      title: level.title,
+      description: "",
+      icon: level.icon,
+      color: level.color,
+      count: earned ? 1 : 0,
+      target: level.coins,
+      earned,
+    }
+  })
+
+  for (const badge of earnedBadges) {
+    if (levels.some((level) => level.key === badge.levelKey)) continue
+    achievements.push({
+      key: `level:${badge.levelKey}`,
+      source: "level",
+      title: badge.title,
+      description: "",
+      icon: badge.icon,
+      color: badge.color,
+      count: 1,
+      target: badge.coins,
+      earned: true,
+    })
+  }
+
+  for (const recorded of recordedAchievements) {
+    achievements.push({
+      key: recorded.rule.id,
+      source: "managed",
+      title: recorded.rule.title,
+      description: recorded.rule.description,
+      icon: recorded.rule.icon,
+      color: recorded.rule.color,
+      count: recorded.count,
+      target: recorded.rule.target,
+      earned: recorded.earnedAt !== null,
+    })
+  }
   const effectiveMarginBasisPoints = await resolveClientMarkup(c.settings, "mlbb", {
     clientId: viewer.clientId,
     coinsConsumed: volume30d,
   })
-  const fundingAvailable = (await c.operationsMode()) === "sandbox"
+  const fundingAvailable = true
   const target = preferredTarget(preferences)
 
   return {
     fundingAvailable,
+    identity: { username: account.username, email: account.email },
+    achievements,
     orders: orders.map((order) => ({
       id: order.id,
       token: order.token,
@@ -157,15 +212,15 @@ export async function addProfile(
   if (check === null) throw new PlayerVerificationError()
   if (!check.valid) throw new InvalidPlayerError()
 
-  await c.gamingProfiles.add({
-    id: newId(),
-    accountId: viewer.accountId,
-    label: input.label,
-    game: input.game,
-    userId: target.userId,
-    serverId: target.serverId,
-    playerName: check.name,
-  })
+await c.gamingProfiles.add({
+      id: newId(),
+      clientId: viewer.clientId,
+      accountId: viewer.accountId,
+      game: input.game,
+      userId: target.userId,
+      serverId: target.serverId,
+      playerName: check.name,
+    })
 }
 
 export async function removeProfile(c: Container, viewer: AccountViewer, profileId: string): Promise<void> {

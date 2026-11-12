@@ -5,6 +5,7 @@ export type PartitionBarProps = {
   total: { label: string; minor: number }
   parts: readonly { label: string; minor: number; tone: VizTone }[]
   currency?: string
+  format?: (value: number) => string
   formatValue?: (value: number) => string
   emptyLabel?: string
   ariaLabel?: string
@@ -20,12 +21,14 @@ export default function PartitionBar({
   total,
   parts,
   currency,
-  formatValue = (value) => formatMinor(value, currency),
+  format,
+  formatValue,
   emptyLabel = DEFAULT_EMPTY_LABEL,
   ariaLabel,
   compact,
   showTotal = true,
 }: PartitionBarProps) {
+  const resolvedFormat = format ?? formatValue ?? ((value: number) => formatMinor(value, currency))
   const positives = parts.filter((p) => p.minor > 0)
   const positiveSum = positives.reduce((acc, p) => acc + p.minor, 0)
   const isEmpty = total.minor <= 0 || positives.length === 0
@@ -37,10 +40,10 @@ export default function PartitionBar({
 
   const defaultAriaLabel =
     parts.length > 0
-      ? `مخطط الأجزاء: ${total.label} ${formatValue(total.minor)} — ${parts
-          .map((p) => `${p.label} ${formatValue(p.minor)}`)
+      ? `مخطط الأجزاء: ${total.label} ${resolvedFormat(total.minor)} — ${parts
+          .map((p) => `${p.label} ${resolvedFormat(p.minor)}`)
           .join("، ")}.`
-      : `مخطط الأجزاء: ${total.label} ${formatValue(total.minor)}.`
+      : `مخطط الأجزاء: ${total.label} ${resolvedFormat(total.minor)}.`
   const resolvedAriaLabel = ariaLabel ?? defaultAriaLabel
 
   const hideHeader = compact || !showTotal
@@ -51,7 +54,7 @@ export default function PartitionBar({
         <div className="flex flex-wrap items-baseline gap-2">
           <span className="text-sm font-semibold text-muted">{total.label}</span>
           <span className="num text-sm font-bold text-ink" dir="ltr">
-            {formatValue(total.minor)}
+            {resolvedFormat(total.minor)}
           </span>
         </div>
       )}
@@ -68,7 +71,7 @@ export default function PartitionBar({
                   className="viz-segment"
                   data-testid="partition-segment"
                   data-label={p.label}
-                  title={`${p.label}: ${formatValue(p.minor)}`}
+                  title={`${p.label}: ${resolvedFormat(p.minor)}`}
                   style={{
                     width: `${(p.minor / denominator) * 100}%`,
                     backgroundColor: VIZ_TONE[p.tone],
@@ -80,7 +83,7 @@ export default function PartitionBar({
                   className="viz-segment viz-segment-residual"
                   data-testid="partition-segment"
                   data-label={RESIDUAL_LABEL}
-                  title={`${RESIDUAL_LABEL}: ${formatValue(residual)}`}
+                  title={`${RESIDUAL_LABEL}: ${resolvedFormat(residual)}`}
                   style={{
                     width: `${(residual / denominator) * 100}%`,
                     backgroundColor: VIZ_TONE.muted,
@@ -94,7 +97,7 @@ export default function PartitionBar({
               <p className="viz-residual-note text-sm text-muted">
                 {RESIDUAL_LABEL}:{" "}
                 <span className="num" dir="ltr">
-                  {formatValue(residual)}
+                  {resolvedFormat(residual)}
                 </span>
               </p>
             ) : null}
@@ -111,7 +114,7 @@ export default function PartitionBar({
                 <span>
                   {DEFICIT_LABEL}:{" "}
                   <span className="num" dir="ltr">
-                    {formatValue(deficit)}
+                    {resolvedFormat(deficit)}
                   </span>
                 </span>
               </div>
@@ -133,7 +136,7 @@ export default function PartitionBar({
                 />
                 <span>{p.label}</span>
                 <span className="num" dir="ltr">
-                  {formatValue(p.minor)}
+                  {resolvedFormat(p.minor)}
                 </span>
               </li>
             )
@@ -147,7 +150,7 @@ export default function PartitionBar({
               />
               <span>{RESIDUAL_LABEL}</span>
               <span className="num" dir="ltr">
-                {formatValue(residual)}
+                {resolvedFormat(residual)}
               </span>
             </li>
           ) : null}

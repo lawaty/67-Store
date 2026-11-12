@@ -12,6 +12,10 @@ coverage/
 .env
 .env.*
 !.env.example
+gate-users.txt
+gate-enabled
+fake-payments
+fake-fulfilment
 tmp/
 .DS_Store
 Thumbs.db

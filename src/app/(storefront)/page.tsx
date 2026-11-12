@@ -18,11 +18,20 @@ export const dynamic = "force-dynamic"
 
 export default async function Page() {
   const locale = await getLocale()
-  const { products, defaultMethod } = await (await serverApi()).get<StorefrontDto>("/api/storefront")
+  const { products, defaultMethod, gateways } = await (await serverApi()).get<StorefrontDto>("/api/storefront")
   const { diamonds, bundles } = partitionProducts(products)
   const preferred = await readPreferredMethod()
   const method = preferred ?? defaultMethod
   const currency = t(locale, "common.currency")
+  const paymobEnabled = gateways.card || gateways.wallet
+  const coinsEnabled = gateways.coins
+  const cryptoEnabled = gateways.crypto
+  const offeredMethodIds = [
+    ...(paymobEnabled ? ["paymob" as const] : []),
+    ...(coinsEnabled ? ["coins" as const] : []),
+    ...(cryptoEnabled ? ["crypto" as const] : []),
+  ]
+  const selectedMethod = offeredMethodIds.includes(method) ? method : (offeredMethodIds[0] ?? method)
 
   const unavailableReason = (product: (typeof diamonds)[number]) => {
     if (product.buyable) return undefined
@@ -33,7 +42,7 @@ export default async function Page() {
   }
 
   const diamondOptions: ProductMethodOption[] = diamonds.map((product) => {
-    const display = priceFor(product, method, currency)
+    const display = priceFor(product, selectedMethod, currency)
     const priceLabel =
       display.coinAmount !== undefined
         ? `${display.coinAmount} ${t(locale, "common.currencyCoins")}`
@@ -41,7 +50,7 @@ export default async function Page() {
     return {
       id: product.name,
       label: `${product.name} — ${priceLabel}`,
-      href: topupPath(product.name, method),
+      href: topupPath(product.name, selectedMethod),
       price: display.price,
       coinAmount: display.coinAmount,
       disabled: !product.buyable,
@@ -117,7 +126,7 @@ export default async function Page() {
         ) : (
           <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {featuredBundles.map((product) => {
-              const display = priceFor(product, method, currency)
+              const display = priceFor(product, selectedMethod, currency)
               return (
               <div key={product.id} className={`card group ${product.buyable ? "card-lift" : "opacity-80"}`}>
                 <div className="card-body">
@@ -143,7 +152,7 @@ export default async function Page() {
                 </div>
                 <div className="border-t border-line p-3">
                   {product.buyable ? (
-                    <Link className="btn btn-primary cta-sheen w-full" href={topupPath(product.name, method)}>
+                    <Link className="btn btn-primary cta-sheen w-full" href={topupPath(product.name, selectedMethod)}>
                       {t(locale, "home.cta.topup")}
                     </Link>
                   ) : (

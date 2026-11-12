@@ -23,7 +23,7 @@ On each successful catalogue sync:
 
 New products have no previous cost and are skipped on their first appearance. Inactive or delisted products are excluded. The index reads only distributor USD-minor costs; it does not read EGP, the treasury WAC, or the USDT funding rate.
 
-**Coin value** is `index` USD minor. At index `1.0`, one coin is worth 1 cent (0.01 USDT).
+**Coin value** is `index` USD cents (USD minor units). At index `1.0`, one coin is worth 1 cent (0.01 USDT).
 
 The index stabilises the price level, not every product's relative price. A uniform distributor cost change leaves coin prices unchanged up to whole-coin rounding. A change in one product's cost still moves that product's coin price.
 

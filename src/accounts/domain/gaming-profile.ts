@@ -1,11 +1,11 @@
 /**
- * Immutable saved gaming profile linking an account to game/player identifiers.
- * Requires non-empty label, user, server, and game; normalizes blank player name to null.
+ * Immutable saved gaming profile linking a client/account to game/player identifiers.
+ * Requires non-empty clientId, user, server, and game; normalizes blank player name to null.
  */
 export type GamingProfile = {
   readonly id: string
-  readonly accountId: string
-  readonly label: string
+  readonly clientId: string
+  readonly accountId: string | null
   readonly userId: string
   readonly serverId: string
   readonly game: string
@@ -15,8 +15,8 @@ export type GamingProfile = {
 
 export function gamingProfile(input: {
   id: string
-  accountId: string
-  label: string
+  clientId: string
+  accountId?: string | null
   userId: string
   serverId: string
   game: string
@@ -24,14 +24,14 @@ export function gamingProfile(input: {
   createdAt?: Date | string | null
 }): GamingProfile {
   const id = input.id.trim()
-  const accountId = input.accountId.trim()
-  const label = input.label.trim()
+  const clientId = input.clientId.trim()
+  const accountId = input.accountId == null ? null : input.accountId.trim()
   const userId = input.userId.trim()
   const serverId = input.serverId.trim()
   const game = input.game.trim()
   const playerName = (input.playerName ?? "").trim()
 
-  if (label.length === 0 || userId.length === 0 || serverId.length === 0 || game.length === 0) {
+  if (clientId.length === 0 || userId.length === 0 || serverId.length === 0 || game.length === 0) {
     throw new RangeError()
   }
 
@@ -44,8 +44,8 @@ export function gamingProfile(input: {
 
   return Object.freeze({
     id,
-    accountId,
-    label,
+    clientId,
+    accountId: accountId === "" ? null : accountId,
     userId,
     serverId,
     game,

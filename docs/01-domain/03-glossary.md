@@ -14,7 +14,7 @@ Ubiquitous language. A term enters code only after it is defined here.
 | Gaming profile | A saved player identity on a client account: a label, a user id and a server id, reused for repeat topups. |
 | Wallet | A client's balance in 67 Coins. It is shown in the account and credited by the back office. |
 | Coin (67 Coins) | The customer's prepaid credit in the wallet. One coin is worth the coin value, initially 1 cent (0.01 USDT); the coin index moves it with distributor costs. |
-| Coin index | A dimensionless multiplier that tracks changes in distributor product costs. Coin value = index USD minor. Defined in [Pricing and markup](04-pricing-markup.md#coin-index). |
+| Coin index | A dimensionless multiplier that tracks changes in distributor product costs. Coin value = index USD cents (USD minor units). Defined in [Pricing and markup](04-pricing-markup.md#coin-index). |
 | Preference | A value a client saves on its account, such as a player id or a currency. |
 | Player | The in-game account that receives a topup. For MLBB it is the pair `userId` and `serverId` (zone). |
 | Topup | A purchase of in-game currency or a pass, delivered to a player's game account. |
@@ -39,7 +39,7 @@ Ubiquitous language. A term enters code only after it is defined here.
 | Distributor cost snapshots | The distributor price recorded on the order at creation, so margin does not drift when the catalogue price changes. |
 | USDT | The dollar-denominated token we buy and load into the distributor; the unit of account behind every coin. |
 | Treasury | The USDT we hold with the distributor, its EGP cost, and the records that reconcile them. |
-| Funding lot | One purchase of USDT loaded into the distributor, recording the total EGP paid including fees and the USDT received. Append-only. |
+| Funding lot | One purchase of USDT loaded into the distributor, recording the total EGP paid including fees and the USDT received, in milli-USDT (1 USDT = 1,000). Append-only. |
 | WAC | Weighted average cost: the remaining EGP basis divided by the remaining USDT. Buying moves it; spending leaves it unchanged. |
 | Consumption | The USDT an order removes from the treasury when it is delivered, recorded once per order at the order's snapshot WAC. |
 | COGS | Cost of goods sold: what a delivered product cost us in EGP, at the order's snapshot WAC. |
@@ -49,7 +49,7 @@ Ubiquitous language. A term enters code only after it is defined here.
 | Total USDT (الإجمالي) | The live distributor balance; recorded USDT plus free USDT. |
 | Recorded USDT (المسجل) | Confirmed funding minus consumption: the treasury's book balance, and the basis for reserved calculations. |
 | Free USDT (الحر / غير المسجل) | Total USDT minus recorded USDT: the live balance not in the books. |
-| Reserved USDT (المحجوز) | The USDT set aside for outstanding coins: coins outstanding × current coin value. |
+| Reserved USDT (المحجوز) | The USDT set aside for outstanding coins, in milli-USDT: coins outstanding × coin value (cents) × 10. |
 | Available USDT (المتاح) | Recorded USDT minus reserved USDT; the amount that determines sellable coins and product buyability. |
 | Customer coin liability (التزامات العملاء) | The coins owed to clients, equal to coins outstanding; reserved USDT backs it. |
 | Coverage | The live distributor USDT balance divided by reserved USDT. An internal invariant check, not a dashboard metric. |
@@ -58,6 +58,8 @@ Ubiquitous language. A term enters code only after it is defined here.
 | Break-even rate | The EGP-per-USDT rate at which a deposit neither gains nor loses against WAC; currently the same value as WAC. |
 | Reconciliation | The daily comparison of the expected USDT balance (funding minus consumption) with the distributor balance. |
 | Order snapshot | The distributor cost, WAC, COGS, price, margin and coin value recorded on an order at placement so they never drift. |
+| Paymob | The payment provider that processes card and wallet payments in EGP; it hosts the payment page and confirms each payment by HMAC-signed callback. |
+| Intention | Paymob's hosted-checkout payment request; the app creates one per charge and Paymob returns a client secret that opens its payment page. |
 | P2P rate | The EGP price of 1 USDT on the peer-to-peer market; the dashboard's market-rate reference. |
 | Trend window | The trend chart's selectable 7/14/30-day view (default 30), moved in whole-day steps across up to 90 days of retained history; distinct from the P2P aggregation window. |
 | Coins outstanding | The sum of all wallet coin balances; reserved at the current coin value. |

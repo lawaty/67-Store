@@ -9,6 +9,8 @@ export type PlayerCheck = { readonly valid: boolean; readonly name: string | nul
 export type DistributorOrder = {
   readonly distributorOrderId: string
   readonly status: DistributorStatus
+  readonly priceMinor?: number
+  readonly priceUsdtMilli?: number
 }
 
 import { Player } from "@/ordering"
@@ -18,7 +20,8 @@ export interface Distributor {
   checkPlayer(input: { game: string; player: Player }): Promise<PlayerCheck>
   placeOrder(input: { orderId: string; game: string; product: Product; player: Player }): Promise<DistributorOrder>
   getOrder(input: { distributorOrderId: string; game: string }): Promise<DistributorOrder>
-  getBalance(): Promise<{ readonly balanceMinor: number }>
+  /** Upstream USD credit in milli-USD. */
+  getBalance(): Promise<{ readonly balanceMilli: number }>
 }
 
 export class DistributorError extends Error {

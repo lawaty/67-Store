@@ -26,7 +26,7 @@ flowchart LR
     GAD["<b>Distributor adapter</b><br/><i>anti-corruption layer</i>"]
   end
   DB[("Database<br/>MariaDB")]
-  PM["InstaPay and crypto"]
+  PM["Paymob"]
   G["Distributor"]
   SF --> CAT
   SF --> AC

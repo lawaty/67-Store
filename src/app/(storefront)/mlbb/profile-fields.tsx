@@ -10,29 +10,31 @@ import type { Locale } from "@/i18n/locale"
 
 type Profile = {
   readonly id: string
-  readonly label: string
+  readonly game: string
   readonly userId: string
   readonly serverId: string
   readonly playerName?: string | null
 }
 
+function profileLabel(profile: Profile): string {
+  return profile.playerName ?? `${profile.game.toUpperCase()} · ${profile.userId}/${profile.serverId}`
+}
+
 export function ProfileFields({
   locale,
   profiles,
-  canSave,
   defaultUserId = "",
   defaultServerId = "",
 }: {
   locale: Locale
   profiles: readonly Profile[]
-  canSave: boolean
   defaultUserId?: string
   defaultServerId?: string
 }) {
   const [selected, setSelected] = useState(profiles[0]?.id ?? "")
   const [isNew, setIsNew] = useState(selected === "")
   const current = profiles.find((profile) => profile.id === selected)
-  const name = current?.playerName || current?.label || ""
+  const name = current ? profileLabel(current) : ""
   const monogram = name.trim().charAt(0).toUpperCase() || "?"
 
   return (
@@ -52,8 +54,7 @@ export function ProfileFields({
             <option value="">{t(locale, "topup.profileNew")}</option>
             {profiles.map((profile) => (
               <option key={profile.id} value={profile.id}>
-                {profile.label} — {profile.userId} / {profile.serverId}
-                {profile.playerName ? ` · ${profile.playerName}` : ""}
+                {profileLabel(profile)} — {profile.userId} / {profile.serverId}
               </option>
             ))}
           </select>
@@ -84,13 +85,6 @@ export function ProfileFields({
 
       {isNew ? (
         <div className="grid gap-4">
-          {canSave ? (
-            <div className="field">
-              <label htmlFor="label">{t(locale, "topup.profileNameLabel")}</label>
-              <input id="label" name="label" placeholder={t(locale, "topup.profileNamePlaceholder")} />
-              <p className="hint"><Icon name="save" size={14} /> {t(locale, "topup.profileNameHint")}</p>
-            </div>
-          ) : null}
           <PlayerIdentityFields
             locale={locale}
             variant="topup"

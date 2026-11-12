@@ -1,6 +1,4 @@
 /**
- * Re-exports scheduled job factories for order fulfilment polling and treasury
- * reconciliation.
+ * Re-exports scheduled job factories for order fulfilment polling.
  */
 export * from "./poll-orders"
-export * from "./reconcile"

@@ -1,6 +1,6 @@
 /**
  * POST /api/webhooks/g2bulk accepts G2Bulk order webhooks. Verifies the
- * signature, records delivery idempotently, and syncs fulfilment for matched orders.
+ * signature, syncs fulfilment for matched orders, and then records the delivery.
  */
 import { getContainer } from "@/api/container"
 import { readEnv } from "@/env"
@@ -36,11 +36,6 @@ export async function POST(request: Request): Promise<Response> {
     return new Response("missing event id", { status: 400 })
   }
 
-  const firstDelivery = await container.webhookEvents.record("g2bulk", eventId, payload)
-  if (!firstDelivery) {
-    return new Response("ok")
-  }
-
   const data = (record.data ?? record) as Record<string, unknown>
   const distributorOrderId = data.order_id ?? data.id
   if (typeof distributorOrderId === "string" || typeof distributorOrderId === "number") {
@@ -49,6 +44,13 @@ export async function POST(request: Request): Promise<Response> {
       await container.syncFulfilment(order)
     }
   }
+
+  // Record only after the event has been applied: recording first turns a
+  // retry of a failed sync into a duplicate that is acked and dropped. The
+  // sync is intentionally left unguarded so an unexpected failure returns 500
+  // and the distributor retries; the unique WebhookEvent.eventId constraint
+  // still prevents duplicate audit rows.
+  await container.webhookEvents.record("g2bulk", eventId, payload)
 
   return new Response("ok")
 }

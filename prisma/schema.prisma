@@ -12,30 +12,41 @@ enum PromoKind {
   FIXED
 }
 
+enum AchievementType {
+  TOTAL_ORDERS
+  ORDERS_PER_MONTH
+  ORDERS_PER_WEEK
+}
+
 model Client {
   id        String         @id @default(uuid())
   suspended Boolean        @default(false)
   createdAt DateTime       @default(now())
   account   ClientAccount?
   orders    Order[]
+  profiles  GamingProfile[]
   wallet    Wallet?
   deposits  Deposit[]
   levelAchievements LevelAchievement[]
   walletFundings    WalletFunding[]
+  achievements ClientAchievement[]
 }
 
 model GamingProfile {
-  id         String        @id @default(uuid())
-  accountId  String
-  account    ClientAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  label      String
+  id         String         @id @default(uuid())
+  clientId   String
+  client     Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  accountId  String?
+  account    ClientAccount? @relation(fields: [accountId], references: [id], onDelete: Cascade)
   userId     String
   serverId   String
-  game       String        @default("mlbb")
+  game       String         @default("mlbb")
   playerName String?
-  createdAt  DateTime      @default(now())
+  createdAt  DateTime       @default(now())
+  orders     Order[]
 
-  @@unique([accountId, game, userId, serverId])
+  @@unique([clientId, game, userId, serverId])
+  @@index([accountId])
 }
 
 model Wallet {
@@ -53,6 +64,7 @@ model WalletEntry {
   wallet    Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
   amount    Int
   reason    String
+  reference String? @unique
   createdAt DateTime @default(now())
 
   @@index([walletId, createdAt])
@@ -63,6 +75,7 @@ model ClientAccount {
   clientId     String          @unique
   client       Client          @relation(fields: [clientId], references: [id])
   email        String          @unique
+  username     String          @unique
   passwordHash String
   createdAt    DateTime        @default(now())
   preferences  Preference[]
@@ -147,6 +160,8 @@ model Order {
   client             Client           @relation(fields: [clientId], references: [id])
   productId          String
   product            Product          @relation(fields: [productId], references: [id])
+  profileId          String
+  profile            GamingProfile    @relation(fields: [profileId], references: [id])
   userId             String
   serverId           String
   playerName         String?
@@ -155,12 +170,16 @@ model Order {
   exchangeRate       Decimal?         @db.Decimal(18, 8)
   exchangeRateAt     DateTime?
   status             OrderStatus
+  // Policy version the customer accepted and when they accepted it.
+  termsVersion       String?
+  termsAcceptedAt    DateTime?
   paymentReference   String?
   distributorOrderId String?
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
   payments           Payment[]
   costMinor          Int?
+  costUsdtMilli      BigInt?
   discountMinor      Int              @default(0)
   promoCodeId        String?
   promoCode          PromoCode?       @relation(fields: [promoCodeId], references: [id])
@@ -177,6 +196,7 @@ model Order {
   @@index([status])
   @@index([createdAt])
   @@index([clientId, createdAt])
+  @@index([profileId])
 }
 
 enum OrderStatus {
@@ -205,7 +225,9 @@ model Payment {
 }
 
 enum PaymentProvider {
+  // Legacy provider value retained for historical rows and no longer offered to customers.
   INSTAPAY
+  PAYMOB
   CRYPTO
   COINS
 }
@@ -227,8 +249,8 @@ model WebhookEvent {
 
 model Funding {
   id           String   @id @default(uuid())
-  egpPaidMinor Int
-  usdtMinor    Int
+  egpPaidMinor BigInt
+  usdtMilli    BigInt
   createdAt    DateTime @default(now())
 
   @@index([createdAt])
@@ -237,9 +259,9 @@ model Funding {
 model TreasuryConsumption {
   id            String   @id @default(uuid())
   orderId       String   @unique
-  usdtMinor     Int
-  basisEgpMinor Int
-  wacEgpMinor   Int
+  usdtMilli     BigInt
+  basisEgpMinor BigInt
+  wacEgpMinor   BigInt
   createdAt     DateTime @default(now())
 
   @@index([createdAt])
@@ -247,9 +269,9 @@ model TreasuryConsumption {
 
 model Reconciliation {
   id                String   @id @default(uuid())
-  expectedUsdtMinor Int
-  supplierUsdtMinor Int
-  gapUsdtMinor      Int
+  expectedUsdtMilli BigInt
+  supplierUsdtMilli BigInt
+  gapUsdtMilli      BigInt
   status            String   @db.VarChar(32)
   createdAt         DateTime @default(now())
 
@@ -294,6 +316,37 @@ model LevelAchievement {
 
   @@unique([clientId, levelKey])
   @@index([clientId, coins])
+}
+
+model Achievement {
+  id          String               @id @default(uuid())
+  title       String
+  description String               @db.Text
+  icon        String
+  color       String
+  type        AchievementType
+  target      Int
+  active      Boolean              @default(true)
+  sortOrder   Int                  @default(0)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  progress    ClientAchievement[]
+
+  @@index([active, sortOrder])
+}
+
+model ClientAchievement {
+  id            String      @id @default(uuid())
+  clientId      String
+  client        Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  achievementId String
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  count         Int         @default(0)
+  earnedAt      DateTime?
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([clientId, achievementId])
+  @@index([clientId])
 }
 
 enum WalletFundingStatus {

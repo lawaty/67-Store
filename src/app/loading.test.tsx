@@ -5,8 +5,8 @@ import { render, cleanup } from "@testing-library/react"
 import RootLoading from "./loading"
 import StorefrontLoading from "./(storefront)/loading"
 import ProductsLoading from "./(storefront)/products/loading"
-import AccountLoading from "./(storefront)/account/loading"
-import AccountProfilesLoading from "./(storefront)/account/profiles/loading"
+import AccountLoading from "./(storefront)/account/(dashboard)/loading"
+import AccountProfilesLoading from "./(storefront)/account/(dashboard)/profiles/loading"
 import LoginLoading from "./(storefront)/account/login/loading"
 import RegisterLoading from "./(storefront)/account/register/loading"
 import MlbbLoading from "./(storefront)/mlbb/[product]/[method]/loading"
@@ -29,8 +29,8 @@ const loadingModules = [
   ["src/app/loading.tsx", RootLoading],
   ["src/app/(storefront)/loading.tsx", StorefrontLoading],
   ["src/app/(storefront)/products/loading.tsx", ProductsLoading],
-  ["src/app/(storefront)/account/loading.tsx", AccountLoading],
-  ["src/app/(storefront)/account/profiles/loading.tsx", AccountProfilesLoading],
+  ["src/app/(storefront)/account/(dashboard)/loading.tsx", AccountLoading],
+  ["src/app/(storefront)/account/(dashboard)/profiles/loading.tsx", AccountProfilesLoading],
   ["src/app/(storefront)/account/login/loading.tsx", LoginLoading],
   ["src/app/(storefront)/account/register/loading.tsx", RegisterLoading],
   ["src/app/(storefront)/mlbb/[product]/[method]/loading.tsx", MlbbLoading],

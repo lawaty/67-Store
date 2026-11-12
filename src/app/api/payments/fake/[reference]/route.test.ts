@@ -8,12 +8,19 @@ const walletFindByReferenceMock = vi.fn()
 const confirmPaymentMock = vi.fn()
 const fulfilOrderMock = vi.fn()
 const settleWalletFundingMock = vi.fn()
-const operationsModeMock = vi.fn()
+const fakePaymentsEnabledMock = vi.fn()
+const fakeFulfilmentEnabledMock = vi.fn()
+const fakeRailsEnabledMock = vi.fn()
 
 vi.mock("@/api/container", () => ({
   getContainer: () => ({
-    operationsMode: (...args: unknown[]) => operationsModeMock(...args),
-    payments: { findByProviderReference: (...args: unknown[]) => paymentsFindByProviderReferenceMock(...args) },
+    fakePaymentsEnabled: (...args: unknown[]) => fakePaymentsEnabledMock(...args),
+    fakeFulfilmentEnabled: (...args: unknown[]) => fakeFulfilmentEnabledMock(...args),
+    fakeRailsEnabled: (...args: unknown[]) => fakeRailsEnabledMock(...args),
+    payments: {
+      findByProviderReference: (...args: unknown[]) => paymentsFindByProviderReferenceMock(...args),
+      saveIfAbsent: async () => true,
+    },
     orders: { findById: (...args: unknown[]) => ordersFindByIdMock(...args) },
     walletFundings: { findByReference: (...args: unknown[]) => walletFindByReferenceMock(...args) },
     confirmPayment: (...args: unknown[]) => confirmPaymentMock(...args),
@@ -27,8 +34,8 @@ const { GET, POST } = await import("./route")
 const fakePayment = {
   id: "p1",
   orderId: "o1",
-  provider: "INSTAPAY",
-  providerReference: "fake_instapay_o1",
+  provider: "PAYMOB",
+  providerReference: "fake_paymob_o1",
   amount: money(1000, "USD"),
   status: "PENDING",
 }
@@ -44,8 +51,8 @@ const fakeFunding = {
   clientId: "c1",
   currency: "EGP",
   amountMinor: 10000,
-  provider: "INSTAPAY",
-  providerReference: "fake_instapay_fund_f1",
+  provider: "PAYMOB",
+  providerReference: "fake_paymob_fund_f1",
   status: "PENDING",
 }
 
@@ -64,7 +71,9 @@ function postPayment(reference: string): Promise<Response> {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  operationsModeMock.mockResolvedValue("sandbox")
+  fakePaymentsEnabledMock.mockResolvedValue(true)
+  fakeFulfilmentEnabledMock.mockReturnValue(true)
+  fakeRailsEnabledMock.mockReturnValue(true)
   paymentsFindByProviderReferenceMock.mockResolvedValue(null)
   ordersFindByIdMock.mockResolvedValue(null)
   walletFindByReferenceMock.mockResolvedValue(null)
@@ -78,26 +87,26 @@ describe("GET /api/payments/fake/[reference]", () => {
     paymentsFindByProviderReferenceMock.mockResolvedValue(fakePayment)
     ordersFindByIdMock.mockResolvedValue(fakeOrder)
 
-    const response = await getPayment("fake_instapay_o1")
+    const response = await getPayment("fake_paymob_o1")
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({
       amount: money(1000, "USD"),
-      provider: "INSTAPAY",
+      provider: "PAYMOB",
       purpose: "order",
     })
-    expect(paymentsFindByProviderReferenceMock).toHaveBeenCalledWith("INSTAPAY", "fake_instapay_o1")
+    expect(paymentsFindByProviderReferenceMock).toHaveBeenCalledWith("PAYMOB", "fake_paymob_o1")
   })
 
   it("returns the funding view as amount, provider and purpose", async () => {
     walletFindByReferenceMock.mockResolvedValue(fakeFunding)
 
-    const response = await getPayment("fake_instapay_fund_f1")
+    const response = await getPayment("fake_paymob_fund_f1")
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({
       amount: money(10000, "EGP"),
-      provider: "INSTAPAY",
+      provider: "PAYMOB",
       purpose: "funding",
     })
   })
@@ -116,13 +125,13 @@ describe("POST /api/payments/fake/[reference]", () => {
     ordersFindByIdMock.mockResolvedValue(fakeOrder)
     confirmPaymentMock.mockResolvedValue(fakeOrder)
 
-    const response = await postPayment("fake_instapay_o1")
+    const response = await postPayment("fake_paymob_o1")
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({ ok: true, redirectUrl: "/order/t1" })
     expect(confirmPaymentMock).toHaveBeenCalledWith({
-      provider: "INSTAPAY",
-      reference: "fake_instapay_o1",
+      provider: "PAYMOB",
+      reference: "fake_paymob_o1",
       status: "PAID",
     })
     expect(fulfilOrderMock).toHaveBeenCalledWith(fakeOrder)
@@ -138,12 +147,12 @@ describe("POST /api/payments/fake/[reference]", () => {
       alreadySettled: false,
     })
 
-    const response = await postPayment("fake_instapay_fund_f1")
+    const response = await postPayment("fake_paymob_fund_f1")
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({ ok: true, redirectUrl: "/account?tab=wallet&funded=1" })
     expect(settleWalletFundingMock).toHaveBeenCalledTimes(1)
-    expect(settleWalletFundingMock).toHaveBeenCalledWith({ providerReference: "fake_instapay_fund_f1" })
+    expect(settleWalletFundingMock).toHaveBeenCalledWith({ providerReference: "fake_paymob_fund_f1" })
     expect(confirmPaymentMock).not.toHaveBeenCalled()
     expect(fulfilOrderMock).not.toHaveBeenCalled()
   })
@@ -156,11 +165,11 @@ describe("POST /api/payments/fake/[reference]", () => {
   })
 })
 
-describe("live operations mode", () => {
-  it("GET returns 404 in live and does not read the fake payment", async () => {
-    operationsModeMock.mockResolvedValue("live")
+describe("fake rails disabled", () => {
+  it("GET returns 404 and does not read the fake payment", async () => {
+    fakeRailsEnabledMock.mockReturnValue(false)
 
-    const response = await getPayment("fake_instapay_o1")
+    const response = await getPayment("fake_paymob_o1")
 
     expect(response.status).toBe(404)
     await expect(response.json()).resolves.toEqual({ error: "not_found" })
@@ -169,17 +178,52 @@ describe("live operations mode", () => {
     expect(ordersFindByIdMock).not.toHaveBeenCalled()
   })
 
-  it("POST returns 400 in live and does not confirm the fake payment", async () => {
-    operationsModeMock.mockResolvedValue("live")
+  it("POST returns 404 and does not confirm the fake payment", async () => {
+    fakeRailsEnabledMock.mockReturnValue(false)
 
-    const response = await postPayment("fake_instapay_o1")
+    const response = await postPayment("fake_paymob_o1")
 
-    expect(response.status).toBe(400)
-    await expect(response.json()).resolves.toEqual({ error: "disabled" })
+    expect(response.status).toBe(404)
+    await expect(response.json()).resolves.toEqual({ error: "not_found" })
     expect(paymentsFindByProviderReferenceMock).not.toHaveBeenCalled()
     expect(walletFindByReferenceMock).not.toHaveBeenCalled()
     expect(confirmPaymentMock).not.toHaveBeenCalled()
     expect(fulfilOrderMock).not.toHaveBeenCalled()
     expect(settleWalletFundingMock).not.toHaveBeenCalled()
+  })
+})
+
+describe("with fake payments enabled", () => {
+  it("GET returns the amount/provider/purpose JSON", async () => {
+    fakePaymentsEnabledMock.mockResolvedValue(true)
+    paymentsFindByProviderReferenceMock.mockResolvedValue(fakePayment)
+    ordersFindByIdMock.mockResolvedValue(fakeOrder)
+
+    const response = await getPayment("fake_paymob_o1")
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      amount: money(1000, "USD"),
+      provider: "PAYMOB",
+      purpose: "order",
+    })
+  })
+
+  it("POST confirms and calls fulfilOrder with the order", async () => {
+    fakePaymentsEnabledMock.mockResolvedValue(true)
+    paymentsFindByProviderReferenceMock.mockResolvedValue(fakePayment)
+    ordersFindByIdMock.mockResolvedValue(fakeOrder)
+    confirmPaymentMock.mockResolvedValue(fakeOrder)
+
+    const response = await postPayment("fake_paymob_o1")
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({ ok: true, redirectUrl: "/order/t1" })
+    expect(confirmPaymentMock).toHaveBeenCalledWith({
+      provider: "PAYMOB",
+      reference: "fake_paymob_o1",
+      status: "PAID",
+    })
+    expect(fulfilOrderMock).toHaveBeenCalledWith(fakeOrder)
   })
 })

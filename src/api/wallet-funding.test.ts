@@ -19,7 +19,7 @@ function fakeContainer(overrides: Partial<Container> = {}): Container {
     startWalletFunding: vi.fn(async () => ({
       ok: true as const,
       funding: {} as never,
-      redirectUrl: "/checkout/fake/fake_instapay_fund_f1",
+      redirectUrl: "/checkout/fake/fake_paymob_fund_f1",
     })),
     ...overrides,
   } as unknown as Container
@@ -86,13 +86,13 @@ describe("startWalletFunding", () => {
     const startWallet = vi.fn(async () => ({
       ok: true as const,
       funding: {} as never,
-      redirectUrl: "/checkout/fake/fake_instapay_fund_f1",
+      redirectUrl: "/checkout/fake/fake_paymob_fund_f1",
     }))
     const container = fakeContainer({ startWalletFunding: startWallet as never })
 
     const result = await startWalletFunding(container, { clientId: "c1", currency, amountMinor: 10000 })
 
-    expect(result).toEqual({ ok: true, redirectUrl: "/checkout/fake/fake_instapay_fund_f1" })
+    expect(result).toEqual({ ok: true, redirectUrl: "/checkout/fake/fake_paymob_fund_f1" })
     expect(startWallet).toHaveBeenCalledWith({ clientId: "c1", currency, amountMinor: 10000 })
   })
 

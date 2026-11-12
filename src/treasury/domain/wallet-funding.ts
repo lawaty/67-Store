@@ -2,7 +2,7 @@
  * Wallet funding value object: validates the quote stored when a wallet
  * funding starts, so settlement can later issue exactly the quoted coins.
  */
-export const FUNDING_PROVIDERS = ["INSTAPAY", "CRYPTO"] as const
+export const FUNDING_PROVIDERS = ["PAYMOB", "CRYPTO"] as const
 export type FundingProvider = (typeof FUNDING_PROVIDERS)[number]
 export type WalletFundingStatus = "PENDING" | "PAID" | "FAILED" | "EXPIRED"
 export type WalletFunding = {

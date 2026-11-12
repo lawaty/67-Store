@@ -19,10 +19,15 @@ function assertNonNegativeSafeInteger(n: number): void {
 
 export function createPrismaOrderRepository(db: PrismaClient): OrderRepository {
   const toOrder = (row: any): Order => {
+    const clientAccount = row.client?.account
+      ? { id: row.client.account.id, username: row.client.account.username, email: row.client.account.email }
+      : null
     const created = order({
       id: row.id,
       token: row.token,
+      profileId: row.profileId,
       client: client(row.client.id),
+      clientAccount,
       product: product({
         id: row.product.id,
         distributorId: row.product.distributorId,
@@ -34,11 +39,18 @@ export function createPrismaOrderRepository(db: PrismaClient): OrderRepository {
       price: money(row.priceMinor, row.currency as CurrencyCode),
       markupBasisPoints: row.markupBasisPoints ?? null,
       coinValueMinor: row.coinValueMinor ?? null,
+      termsVersion: row.termsVersion ?? null,
+      termsAcceptedAt:
+        row.termsAcceptedAt === null || row.termsAcceptedAt === undefined
+          ? null
+          : new Date(row.termsAcceptedAt).toISOString(),
     })
     return Object.freeze({
       id: created.id,
       token: created.token,
+      profileId: row.profileId,
       client: created.client,
+      clientAccount: created.clientAccount ?? null,
       product: created.product,
       player: created.player,
       price: created.price,
@@ -48,6 +60,7 @@ export function createPrismaOrderRepository(db: PrismaClient): OrderRepository {
       createdAt: row.createdAt,
       discountMinor: row.discountMinor,
       costMinor: row.costMinor,
+      costUsdtMilli: row.costUsdtMilli == null ? null : Number(row.costUsdtMilli),
       promoCodeId: row.promoCodeId,
       playerName: row.playerName,
       wacEgpMinor: row.wacEgpMinor,
@@ -58,6 +71,11 @@ export function createPrismaOrderRepository(db: PrismaClient): OrderRepository {
       coinsConsumed: row.coinsConsumed,
       markupBasisPoints: row.markupBasisPoints ?? null,
       refundedAt: row.refundedAt === null || row.refundedAt === undefined ? null : new Date(row.refundedAt).toISOString(),
+      termsVersion: row.termsVersion ?? null,
+      termsAcceptedAt:
+        row.termsAcceptedAt === null || row.termsAcceptedAt === undefined
+          ? null
+          : new Date(row.termsAcceptedAt).toISOString(),
     })
   }
 
@@ -68,6 +86,7 @@ export function createPrismaOrderRepository(db: PrismaClient): OrderRepository {
           data: {
             id: o.id,
             token: o.token,
+            profileId: o.profileId,
             clientId: o.client.id,
             productId: o.product.id,
             userId: o.player.userId,
@@ -78,6 +97,7 @@ export function createPrismaOrderRepository(db: PrismaClient): OrderRepository {
             paymentReference: o.paymentReference,
             distributorOrderId: o.distributorOrderId,
             costMinor: o.costMinor ?? null,
+            costUsdtMilli: o.costUsdtMilli == null ? null : BigInt(o.costUsdtMilli),
             discountMinor: o.discountMinor ?? 0,
             promoCodeId: o.promoCodeId ?? null,
             playerName: o.playerName ?? null,
@@ -89,6 +109,8 @@ export function createPrismaOrderRepository(db: PrismaClient): OrderRepository {
             coinsConsumed: o.coinsConsumed ?? null,
             markupBasisPoints: o.markupBasisPoints ?? null,
             refundedAt: o.refundedAt === null ? null : new Date(o.refundedAt),
+            termsVersion: o.termsVersion ?? null,
+            termsAcceptedAt: o.termsAcceptedAt === null ? null : new Date(o.termsAcceptedAt),
           },
       })
     },
@@ -102,6 +124,7 @@ export function createPrismaOrderRepository(db: PrismaClient): OrderRepository {
             priceMinor: o.price.minor,
             currency: o.price.currency,
             costMinor: o.costMinor ?? null,
+            costUsdtMilli: o.costUsdtMilli == null ? null : BigInt(o.costUsdtMilli),
             discountMinor: o.discountMinor ?? 0,
             promoCodeId: o.promoCodeId ?? null,
             playerName: o.playerName ?? null,
@@ -113,6 +136,8 @@ export function createPrismaOrderRepository(db: PrismaClient): OrderRepository {
             coinsConsumed: o.coinsConsumed ?? null,
             markupBasisPoints: o.markupBasisPoints ?? null,
             refundedAt: o.refundedAt === null ? null : new Date(o.refundedAt),
+            termsVersion: o.termsVersion ?? null,
+            termsAcceptedAt: o.termsAcceptedAt === null ? null : new Date(o.termsAcceptedAt),
           },
       })
     },
@@ -149,9 +174,20 @@ export function createPrismaOrderRepository(db: PrismaClient): OrderRepository {
         where: { clientId },
         orderBy: { createdAt: "desc" },
         take: limit,
-        include: { client: true, product: true },
+        include: { client: { include: { account: true } }, product: true },
       })
       return rows.map((row) => toOrder(row))
+    },
+    countByClient: async (clientId: string, since: string | null) => {
+      // Achievement progress must reflect actual purchases, not abandoned or
+      // refunded checkouts, so only paid/fulfilling/delivered orders count.
+      return db.order.count({
+        where: {
+          clientId,
+          status: { in: ["PAID", "FULFILLING", "DELIVERED"] },
+          ...(since === null ? {} : { createdAt: { gte: new Date(since) } }),
+        },
+      })
     },
     findByDistributorOrderId: async (distributorOrderId: string) => {
       const row = await db.order.findFirst({
@@ -163,8 +199,21 @@ export function createPrismaOrderRepository(db: PrismaClient): OrderRepository {
       }
       return toOrder(row)
     },
-    listByStatus: async (status: OrderStatus, limit: number) => {
-      const rows = await db.order.findMany({ where: { status: status as never }, orderBy: { createdAt: "asc" }, take: limit, include: { client: true, product: true } })
+    listByStatus: async (status: OrderStatus, limit: number, skip = 0) => {
+      const rows = await db.order.findMany({ where: { status: status as never }, orderBy: { createdAt: "asc" }, take: limit, skip, include: { client: true, product: true } })
+      return rows.map((row) => toOrder(row))
+    },
+    listFailedUnrefundedCoinOrders: async (limit: number) => {
+      const rows = await db.order.findMany({
+        where: {
+          status: "FAILED" as never,
+          refundedAt: null,
+          coinsCharged: { not: null, gt: 0 },
+        },
+        orderBy: { createdAt: "asc" },
+        take: limit,
+        include: { client: true, product: true },
+      })
       return rows.map((row) => toOrder(row))
     },
     search: async (input) => {
@@ -197,24 +246,44 @@ export function createPrismaOrderRepository(db: PrismaClient): OrderRepository {
           orderBy: { createdAt: "desc" },
           skip: input.skip,
           take: input.take,
-          include: { client: true, product: true },
+          include: { client: { include: { account: true } }, product: true },
         }),
         db.order.count({ where }),
       ])
       return { rows: rows.map((row) => toOrder(row)), total }
     },
-     sumCoinsChargedSince: async (since: string) => {
-       const agg = await db.order.aggregate({
-         _sum: { coinsCharged: true },
-         where: { status: "DELIVERED", createdAt: { gte: new Date(since) } },
-       })
-       const sum = agg._sum.coinsCharged
-       if (sum === null || sum === undefined) {
-         return 0
-       }
-       assertNonNegativeSafeInteger(sum)
-       return sum
-     },
+      sumCoinsChargedSince: async (since: string) => {
+        const agg = await db.order.aggregate({
+          _sum: { coinsCharged: true },
+          where: { status: "DELIVERED", createdAt: { gte: new Date(since) } },
+        })
+        const sum = agg._sum.coinsCharged
+        if (sum === null || sum === undefined) {
+          return 0
+        }
+        assertNonNegativeSafeInteger(sum)
+        return sum
+      },
+      summarizeByClient: async (clientId: string, monthStart: string) => {
+        const [totalOrders, totalAgg, monthlyAgg] = await Promise.all([
+          db.order.count({ where: { clientId } }),
+          db.order.aggregate({
+            _sum: { coinsCharged: true },
+            where: { clientId, status: { in: ["PAID", "FULFILLING", "DELIVERED"] } },
+          }),
+          db.order.aggregate({
+            _sum: { coinsCharged: true },
+            where: { clientId, status: { in: ["PAID", "FULFILLING", "DELIVERED"] }, createdAt: { gte: new Date(monthStart) } },
+          }),
+        ])
+        const totalSum = totalAgg._sum.coinsCharged
+        const monthlySum = monthlyAgg._sum.coinsCharged
+        const totalPaidCoins = totalSum === null || totalSum === undefined ? 0 : totalSum
+        const monthlyPaidCoins = monthlySum === null || monthlySum === undefined ? 0 : monthlySum
+        assertNonNegativeSafeInteger(totalPaidCoins)
+        assertNonNegativeSafeInteger(monthlyPaidCoins)
+        return { totalOrders, totalPaidCoins, monthlyPaidCoins }
+      },
 
    }
 }

@@ -57,7 +57,7 @@ Every order saves the values that must not drift afterwards:
 | `wacEgpMinor` | WAC at the moment the order was placed. |
 | `cogsEgpMinor` | `cost × WAC`, in EGP minor units. |
 | `tradingMarginMinor` | Sell price minus distributor cost, in USD minor units. |
-| `coinValueMinor` | USD minor units per coin at placement. |
+| `coinValueMinor` | USD cents (USD minor units) per coin at placement. |
 | `priceCoins` | Derived from the USD sell price and the order's coin value; not stored. |
 | `currencyReceived` | Recorded on the deposit that issued the coins; an order does not attribute coins to one deposit. |
 

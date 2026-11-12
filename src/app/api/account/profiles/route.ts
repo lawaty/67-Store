@@ -36,7 +36,7 @@ export async function POST(request: Request): Promise<Response> {
       getContainer(),
       session,
       {
-        label: text(body.label),
+        
         game: text(body.game),
         userId: text(body.userId),
         serverId: text(body.serverId),

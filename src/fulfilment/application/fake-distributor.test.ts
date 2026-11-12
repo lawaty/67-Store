@@ -58,6 +58,6 @@ describe("createFakeDistributor", () => {
   it("reports the fixed sandbox balance", async () => {
     const distributor = createFakeDistributor()
     const result = await distributor.getBalance()
-    expect(result).toEqual({ balanceMinor: 99_999_999 })
+    expect(result).toEqual({ balanceMilli: 999_999_990 })
   })
 })

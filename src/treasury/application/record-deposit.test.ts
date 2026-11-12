@@ -49,6 +49,8 @@ function createWalletRepo(): WalletRepository & { credits: { clientId: string; a
     },
     debit: async () => true,
     listEntries: async () => [],
+    findEntryByReference: async () => null,
+    reverseDebit: async () => {},
   }
 }
 
@@ -72,7 +74,7 @@ describe("recordDeposit", () => {
     const wallets = createWalletRepo()
     const settings = createSettings() // default EGP market 48.5, WAC 5000 wins
     const treasury: Pick<TreasuryService, "snapshot"> = {
-      snapshot: async () => ({ usdtMinor: 0, basisEgpMinor: 0, wacEgpMinor: 5000 }),
+      snapshot: async () => ({ usdtMilli: 0, basisEgpMinor: 0, wacEgpMinor: 5000 }),
     }
     const coinSupply: CoinSupplyRepository = { totalCoins: async () => 0 }
 
@@ -113,7 +115,7 @@ describe("recordDeposit", () => {
     const wallets = createWalletRepo()
     const settings = createSettings() // default EGP market 48.5, coin value 100
     const treasury: Pick<TreasuryService, "snapshot"> = {
-      snapshot: async () => ({ usdtMinor: 0, basisEgpMinor: 0, wacEgpMinor: 5000 }),
+      snapshot: async () => ({ usdtMilli: 0, basisEgpMinor: 0, wacEgpMinor: 5000 }),
     }
     const coinSupply: CoinSupplyRepository = { totalCoins: async () => 0 }
 
@@ -154,7 +156,7 @@ describe("recordDeposit", () => {
     const wallets = createWalletRepo()
     const settings = createSettings()
     const treasury: Pick<TreasuryService, "snapshot"> = {
-      snapshot: async () => ({ usdtMinor: 0, basisEgpMinor: 0, wacEgpMinor: 5000 }),
+      snapshot: async () => ({ usdtMilli: 0, basisEgpMinor: 0, wacEgpMinor: 5000 }),
     }
     const coinSupply: CoinSupplyRepository = { totalCoins: async () => 0 }
 
@@ -179,7 +181,7 @@ describe("recordDeposit", () => {
     const wallets = createWalletRepo()
     const settings = createSettings()
     const treasury: Pick<TreasuryService, "snapshot"> = {
-      snapshot: async () => ({ usdtMinor: 0, basisEgpMinor: 0, wacEgpMinor: 5000 }),
+      snapshot: async () => ({ usdtMilli: 0, basisEgpMinor: 0, wacEgpMinor: 5000 }),
     }
     const coinSupply: CoinSupplyRepository = { totalCoins: async () => 0 }
 
@@ -204,7 +206,7 @@ describe("recordDeposit", () => {
     const wallets = createWalletRepo()
     const settings = createSettings()
     const treasury: Pick<TreasuryService, "snapshot"> = {
-      snapshot: async () => ({ usdtMinor: 0, basisEgpMinor: 0, wacEgpMinor: 5000 }),
+      snapshot: async () => ({ usdtMilli: 0, basisEgpMinor: 0, wacEgpMinor: 5000 }),
     }
     const coinSupply: CoinSupplyRepository = { totalCoins: async () => 0 }
 
@@ -232,7 +234,7 @@ describe("recordDeposit", () => {
     const wallets = createWalletRepo()
     const settings = createSettings()
     const treasury: Pick<TreasuryService, "snapshot"> = {
-      snapshot: async () => ({ usdtMinor: 0, basisEgpMinor: 0, wacEgpMinor: 5000 }),
+      snapshot: async () => ({ usdtMilli: 0, basisEgpMinor: 0, wacEgpMinor: 5000 }),
     }
     const coinSupply: CoinSupplyRepository = { totalCoins: async () => 0 }
 
@@ -260,7 +262,7 @@ describe("recordDeposit", () => {
     const wallets = createWalletRepo()
     const settings = createSettings({ "rate:egp": "50" }) // 5000 EGP minor per USDT
     const treasury: Pick<TreasuryService, "snapshot"> = {
-      snapshot: async () => ({ usdtMinor: 0, basisEgpMinor: 0, wacEgpMinor: 5000 }),
+      snapshot: async () => ({ usdtMilli: 0, basisEgpMinor: 0, wacEgpMinor: 5000 }),
     }
     const coinSupply: CoinSupplyRepository = { totalCoins: async () => 0 }
 
@@ -291,7 +293,7 @@ describe("recordDeposit", () => {
     // Force readDepositRate to throw RangeError by making wacEgpMinor NaN via treasury snapshot
     const settings = createSettings()
     const treasury: Pick<TreasuryService, "snapshot"> = {
-      snapshot: async () => ({ usdtMinor: 0, basisEgpMinor: 0, wacEgpMinor: NaN as any }),
+      snapshot: async () => ({ usdtMilli: 0, basisEgpMinor: 0, wacEgpMinor: NaN as any }),
     }
     const coinSupply: CoinSupplyRepository = { totalCoins: async () => 0 }
 
@@ -316,7 +318,7 @@ describe("recordDeposit", () => {
     const wallets = createWalletRepo()
     const settings = createSettings()
     const treasury: Pick<TreasuryService, "snapshot"> = {
-      snapshot: async () => ({ usdtMinor: 0, basisEgpMinor: 0, wacEgpMinor: 5000 }),
+      snapshot: async () => ({ usdtMilli: 0, basisEgpMinor: 0, wacEgpMinor: 5000 }),
     }
     const coinSupply: CoinSupplyRepository = { totalCoins: async () => 0 }
 
@@ -345,7 +347,7 @@ describe("recordDeposit", () => {
     const wallets = createWalletRepo()
     const settings = createSettings()
     const treasury: Pick<TreasuryService, "snapshot"> = {
-      snapshot: async () => ({ usdtMinor: 0, basisEgpMinor: 0, wacEgpMinor: 5000 }),
+      snapshot: async () => ({ usdtMilli: 0, basisEgpMinor: 0, wacEgpMinor: 5000 }),
     }
     const coinSupply: CoinSupplyRepository = {
       totalCoins: async () => {
@@ -376,7 +378,7 @@ describe("recordDeposit", () => {
     const wallets = createWalletRepo()
     const settings = createSettings()
     const treasury: Pick<TreasuryService, "snapshot"> = {
-      snapshot: async () => ({ usdtMinor: 0, basisEgpMinor: 0, wacEgpMinor: 5000 }),
+      snapshot: async () => ({ usdtMilli: 0, basisEgpMinor: 0, wacEgpMinor: 5000 }),
     }
     const coinSupply: CoinSupplyRepository = { totalCoins: async () => 0 }
 

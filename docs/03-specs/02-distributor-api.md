@@ -43,7 +43,7 @@ Distributor statuses `PENDING`, `PROCESSING`, `COMPLETED`, `FAILED`. HTTP 410 ma
 
 ## Catalogue
 
-`GET /v1/games/{code}/catalogue` returns `{ catalogues: [{ id, name, amount }] }`. `amount` is USD with 3 decimals, rounded up to minor units on our side.
+`GET /v1/games/{code}/catalogue` returns `{ catalogues: [{ id, name, amount }] }`. `amount` is USD with 3 decimals. Product/distributor prices stay in USD cents (USD minor units); catalogue amounts are converted to cents with ceil rounding (`usdToMinor`) on our side.
 
 ## Games
 
@@ -55,7 +55,7 @@ Distributor statuses `PENDING`, `PROCESSING`, `COMPLETED`, `FAILED`. HTTP 410 ma
 
 ## Balance
 
-`GET /v1/getMe` returns `{ balance, success, ... }`. `balance` is the upstream credit in USD available for fulfilment. Used by the back-office balance panel.
+`GET /v1/getMe` returns `{ balance, success, ... }`. `balance` is the upstream credit in USD available for fulfilment, carried at milli-USD (`balanceMilli`) to preserve its 3-decimal precision. Used by the back-office balance panel.
 
 ## Webhooks
 

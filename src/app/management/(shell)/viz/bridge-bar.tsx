@@ -6,6 +6,7 @@ export type BridgeBarProps = {
   total: { label: string; minor: number | null }
   parts: readonly { label: string; minor: number; tone: VizTone }[]
   currency?: string
+  format?: (value: number) => string
   emptyLabel?: string
   ariaLabel?: string
 }
@@ -16,6 +17,7 @@ export default function BridgeBar({
   total,
   parts,
   currency,
+  format,
   emptyLabel,
   ariaLabel,
 }: BridgeBarProps) {
@@ -24,13 +26,14 @@ export default function BridgeBar({
     .filter((p) => p.minor > 0)
     .reduce((acc, p) => acc + p.minor, 0)
   const effectiveTotalMinor = isUnavailable ? positiveSum : (total.minor as number)
+  const resolvedFormat = format ?? ((value: number) => formatMinor(value, currency))
 
   const partsDescription = parts
-    .map((p) => `${p.label} ${formatMinor(p.minor, currency)}`)
+    .map((p) => `${p.label} ${resolvedFormat(p.minor)}`)
     .join("، ")
   const defaultAriaLabel = isUnavailable
     ? `جسر التسوية: ${partsDescription}، ${UNAVAILABLE_LABEL}.`
-    : `جسر التسوية: ${partsDescription}، والمباشر ${formatMinor(total.minor as number, currency)}.`
+    : `جسر التسوية: ${partsDescription}، والمباشر ${resolvedFormat(total.minor as number)}.`
   const resolvedAriaLabel = ariaLabel ?? defaultAriaLabel
 
   return (
@@ -46,6 +49,7 @@ export default function BridgeBar({
           total={{ label: isUnavailable ? "مجموع الأجزاء" : total.label, minor: effectiveTotalMinor }}
           parts={parts}
           currency={currency}
+          format={resolvedFormat}
           emptyLabel={emptyLabel}
           ariaLabel={resolvedAriaLabel}
         />

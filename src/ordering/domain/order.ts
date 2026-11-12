@@ -12,7 +12,9 @@ import { Product } from "@/catalogue"
 export type Order = {
   readonly id: string
   readonly token: string
+  readonly profileId: string
   readonly client: Client
+  readonly clientAccount?: { readonly id: string; readonly username: string; readonly email: string } | null
   readonly product: Product
   readonly player: Player
   readonly price: Money
@@ -22,6 +24,7 @@ export type Order = {
   readonly createdAt?: Date | string | null
   readonly discountMinor?: number | null
   readonly costMinor?: number | null
+  readonly costUsdtMilli?: number | null
   readonly promoCodeId?: string | null
   readonly playerName?: string | null
   readonly wacEgpMinor: number | null
@@ -32,16 +35,22 @@ export type Order = {
   readonly coinsConsumed: number | null
   readonly markupBasisPoints: number | null
   readonly refundedAt: string | null
+  readonly termsVersion: string | null
+  readonly termsAcceptedAt: string | null
 }
 
 
-export function order(input: { id: string; token: string; client: Client; product: Product; player: Player; price: Money; status?: OrderStatus; paymentReference?: string | null; distributorOrderId?: string | null; createdAt?: Date | string | null; discountMinor?: number | null; costMinor?: number | null; promoCodeId?: string | null; playerName?: string | null; wacEgpMinor?: number | null; cogsEgpMinor?: number | null; tradingMarginMinor?: number | null; coinsCharged?: number | null; coinValueMinor?: number | null; coinsConsumed?: number | null; markupBasisPoints: number | null; refundedAt?: string | null }): Order {
+export function order(input: { id: string; token: string; profileId: string; client: Client; clientAccount?: { readonly id: string; readonly username: string; readonly email: string } | null; product: Product; player: Player; price: Money; status?: OrderStatus; paymentReference?: string | null; distributorOrderId?: string | null; createdAt?: Date | string | null; discountMinor?: number | null; costMinor?: number | null; costUsdtMilli?: number | null; promoCodeId?: string | null; playerName?: string | null; wacEgpMinor?: number | null; cogsEgpMinor?: number | null; tradingMarginMinor?: number | null; coinsCharged?: number | null; coinValueMinor?: number | null; coinsConsumed?: number | null; markupBasisPoints: number | null; refundedAt?: string | null; termsVersion?: string | null; termsAcceptedAt?: string | null }): Order {
   const trimmedId = input.id.trim()
   if (trimmedId.length === 0) {
     throw new RangeError()
   }
   const trimmedToken = input.token.trim()
   if (trimmedToken.length === 0) {
+    throw new RangeError()
+  }
+  const trimmedProfileId = input.profileId.trim()
+  if (trimmedProfileId.length === 0) {
     throw new RangeError()
   }
   const wacEgpMinor = input.wacEgpMinor === undefined ? null : input.wacEgpMinor
@@ -68,6 +77,10 @@ export function order(input: { id: string; token: string; client: Client; produc
   if (coinsConsumed !== null && (!Number.isSafeInteger(coinsConsumed) || coinsConsumed < 0)) {
     throw new RangeError()
   }
+  const costUsdtMilli = input.costUsdtMilli === undefined ? null : input.costUsdtMilli
+  if (costUsdtMilli !== null && (!Number.isSafeInteger(costUsdtMilli) || costUsdtMilli < 0)) {
+    throw new RangeError()
+  }
   const markupBasisPoints = input.markupBasisPoints
   if (markupBasisPoints !== null && (!Number.isSafeInteger(markupBasisPoints) || markupBasisPoints < 0)) {
     throw new RangeError()
@@ -77,10 +90,23 @@ export function order(input: { id: string; token: string; client: Client; produc
   if (refundedAt !== null && refundedAt.length === 0) {
     throw new RangeError()
   }
+  const termsVersionRaw = input.termsVersion
+  const termsVersion =
+    termsVersionRaw === undefined || termsVersionRaw === null ? null : termsVersionRaw.trim() === "" ? null : termsVersionRaw.trim()
+  const termsAcceptedAtRaw = input.termsAcceptedAt
+  const termsAcceptedAtTrimmed =
+    termsAcceptedAtRaw === undefined || termsAcceptedAtRaw === null ? null : termsAcceptedAtRaw.trim()
+  const termsAcceptedAt =
+    termsAcceptedAtTrimmed === null || termsAcceptedAtTrimmed.length === 0 ? null : termsAcceptedAtTrimmed
+  if (termsAcceptedAt !== null && !Number.isFinite(new Date(termsAcceptedAt).getTime())) {
+    throw new RangeError()
+  }
   return Object.freeze({
     id: trimmedId,
     token: trimmedToken,
+    profileId: trimmedProfileId,
     client: input.client,
+    clientAccount: input.clientAccount ?? null,
     product: input.product,
     player: input.player,
     price: input.price,
@@ -90,6 +116,7 @@ export function order(input: { id: string; token: string; client: Client; produc
     createdAt: input.createdAt,
     discountMinor: input.discountMinor,
     costMinor: input.costMinor,
+    costUsdtMilli,
     promoCodeId: input.promoCodeId,
     playerName: input.playerName,
     wacEgpMinor,
@@ -100,6 +127,8 @@ export function order(input: { id: string; token: string; client: Client; produc
     coinsConsumed,
     markupBasisPoints,
     refundedAt,
+    termsVersion,
+    termsAcceptedAt,
   })
 }
 
@@ -108,7 +137,9 @@ export function apply(o: Order, event: OrderEvent): Order {
   return Object.freeze({
     id: o.id,
     token: o.token,
+    profileId: o.profileId,
     client: o.client,
+    clientAccount: o.clientAccount ?? null,
     product: o.product,
     player: o.player,
     price: o.price,
@@ -118,6 +149,7 @@ export function apply(o: Order, event: OrderEvent): Order {
     createdAt: o.createdAt,
     discountMinor: o.discountMinor,
     costMinor: o.costMinor,
+    costUsdtMilli: o.costUsdtMilli ?? null,
     promoCodeId: o.promoCodeId,
     playerName: o.playerName,
     wacEgpMinor: o.wacEgpMinor,
@@ -128,6 +160,8 @@ export function apply(o: Order, event: OrderEvent): Order {
     coinsConsumed: o.coinsConsumed,
     markupBasisPoints: o.markupBasisPoints,
     refundedAt: o.refundedAt,
+    termsVersion: o.termsVersion,
+    termsAcceptedAt: o.termsAcceptedAt,
   })
 }
 
@@ -144,7 +178,9 @@ export function attachPayment(o: Order, reference: string): Order {
   return Object.freeze({
     id: o.id,
     token: o.token,
+    profileId: o.profileId,
     client: o.client,
+    clientAccount: o.clientAccount ?? null,
     product: o.product,
     player: o.player,
     price: o.price,
@@ -154,6 +190,7 @@ export function attachPayment(o: Order, reference: string): Order {
     createdAt: o.createdAt,
     discountMinor: o.discountMinor,
     costMinor: o.costMinor,
+    costUsdtMilli: o.costUsdtMilli ?? null,
     promoCodeId: o.promoCodeId,
     playerName: o.playerName,
     wacEgpMinor: o.wacEgpMinor,
@@ -164,6 +201,8 @@ export function attachPayment(o: Order, reference: string): Order {
     coinsConsumed: o.coinsConsumed,
     markupBasisPoints: o.markupBasisPoints,
     refundedAt: o.refundedAt,
+    termsVersion: o.termsVersion,
+    termsAcceptedAt: o.termsAcceptedAt,
   })
 }
 
@@ -180,7 +219,9 @@ export function attachDistributorOrder(o: Order, distributorOrderId: string): Or
   return Object.freeze({
     id: o.id,
     token: o.token,
+    profileId: o.profileId,
     client: o.client,
+    clientAccount: o.clientAccount ?? null,
     product: o.product,
     player: o.player,
     price: o.price,
@@ -190,6 +231,7 @@ export function attachDistributorOrder(o: Order, distributorOrderId: string): Or
     createdAt: o.createdAt,
     discountMinor: o.discountMinor,
     costMinor: o.costMinor,
+    costUsdtMilli: o.costUsdtMilli ?? null,
     promoCodeId: o.promoCodeId,
     playerName: o.playerName,
     wacEgpMinor: o.wacEgpMinor,
@@ -200,6 +242,24 @@ export function attachDistributorOrder(o: Order, distributorOrderId: string): Or
     coinsConsumed: o.coinsConsumed,
     markupBasisPoints: o.markupBasisPoints,
     refundedAt: o.refundedAt,
+    termsVersion: o.termsVersion,
+    termsAcceptedAt: o.termsAcceptedAt,
   })
 }
 
+export function restateCost(
+  o: Order,
+  input: { costMinor: number; costUsdtMilli?: number | null; cogsEgpMinor: number; tradingMarginMinor: number },
+): Order {
+  const { costMinor, costUsdtMilli, cogsEgpMinor, tradingMarginMinor } = input
+  for (const value of [costMinor, cogsEgpMinor, tradingMarginMinor]) {
+    if (!Number.isSafeInteger(value) || value < 0) throw new RangeError()
+  }
+  if (costUsdtMilli !== undefined) {
+    if (costUsdtMilli !== null && (!Number.isSafeInteger(costUsdtMilli) || costUsdtMilli < 0)) {
+      throw new RangeError()
+    }
+    return Object.freeze({ ...o, costMinor, costUsdtMilli, cogsEgpMinor, tradingMarginMinor })
+  }
+  return Object.freeze({ ...o, costMinor, cogsEgpMinor, tradingMarginMinor })
+}

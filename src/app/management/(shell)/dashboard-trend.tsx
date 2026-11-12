@@ -224,7 +224,7 @@ export default function DashboardTrend({
                     <tr>
                       <th>العميل</th>
                       <th>العملات (٣٠ يوم)</th>
-                      <th>markup الحالي</th>
+                      <th>الهامش الحالي</th>
                       <th>المستوى المتوقع (٧)</th>
                       <th>المستوى المتوقع (٣٠)</th>
                       <th>الربح المتوقع (٧)</th>
@@ -236,7 +236,6 @@ export default function DashboardTrend({
                       <tr key={p.clientId}>
                         <td>
                           <p className="font-semibold text-ink">{p.email ?? "عميل ضيف"}</p>
-                          <p className="num text-xs text-muted">{p.clientId.slice(0, 8)}</p>
                         </td>
                         <td>
                           <span className="num font-bold text-ink" dir="ltr">{p.coinsConsumed30d}</span>

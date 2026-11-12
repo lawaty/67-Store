@@ -13,7 +13,7 @@ vi.mock("react-dom", async (importOriginal) => {
 vi.mock("./actions", () => ({ rollbackFunding: vi.fn() }))
 
 import { RollbackFundingButton } from "./rollback-funding-button"
-import { formatMinor } from "@/frontend/format"
+import { formatUsdtMilli } from "@/frontend/format"
 
 afterEach(() => {
   cleanup()
@@ -22,7 +22,7 @@ afterEach(() => {
 
 describe("RollbackFundingButton", () => {
   it("renders trigger with trash icon and تراجع label", () => {
-    const { container } = render(<RollbackFundingButton id="f1" usdtMinor={10000} />)
+    const { container } = render(<RollbackFundingButton id="f1" usdtMilli={100000} />)
 
     const trigger = screen.getByRole("button", { name: "تراجع" })
     expect(trigger.className).toContain("btn btn-secondary")
@@ -32,16 +32,16 @@ describe("RollbackFundingButton", () => {
   })
 
   it("renders dialog title, formatted USDT amount and warning message", () => {
-    render(<RollbackFundingButton id="f1" usdtMinor={10000} />)
+    render(<RollbackFundingButton id="f1" usdtMilli={100000} />)
 
     expect(document.body.textContent).toContain("تراجع عن التمويل")
-    expect(document.body.textContent).toContain(formatMinor(10000, "USD"))
+    expect(document.body.textContent).toContain(formatUsdtMilli(100000))
     expect(document.body.textContent).toContain("USDT")
     expect(document.body.textContent).toContain("هيتم حذف حركة التمويل وإعادة حساب WAC والرصيد.")
   })
 
   it("renders hidden id and a confirm form submit button", () => {
-    const { container } = render(<RollbackFundingButton id="f1" usdtMinor={10000} />)
+    const { container } = render(<RollbackFundingButton id="f1" usdtMilli={100000} />)
 
     const hidden = container.querySelector<HTMLInputElement>('input[type="hidden"][name="id"]')
     expect(hidden).not.toBeNull()

@@ -8,6 +8,7 @@ import { Icon } from "@/app/icons"
 import { getLocale } from "@/i18n/server"
 import { t } from "@/i18n/dictionary"
 import { SubmitButton } from "@/app/submit-button"
+import { brand } from "@/shared/brand"
 
 export const dynamic = "force-dynamic"
 
@@ -29,7 +30,7 @@ export default async function LoginPage({
               <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-ember/30 bg-ember/10 text-ember">
                 <Icon name="flame" size={18} />
               </span>
-              <span className="font-display text-base font-extrabold"><span className="text-ember">67</span> Store</span>
+              <span className="font-display text-base font-extrabold"><span className="text-ember">{brand.short}</span> {brand.suffix}</span>
             </div>
 
             <p className="eyebrow mt-6"><Icon name="user" size={12} />{t(locale, "account.loginTitle")}</p>

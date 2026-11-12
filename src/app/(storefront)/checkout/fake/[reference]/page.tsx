@@ -8,10 +8,13 @@ import { serverApi } from "@/frontend/server"
 import { ApiError } from "@/frontend/api"
 import type { PaymentPageDto } from "@/api/contracts"
 import { payFake } from "./actions"
+import { AutoSubmitForm } from "./auto-submit-form"
 import { Icon, type IconName } from "@/app/icons"
 import { getLocale } from "@/i18n/server"
 import { t } from "@/i18n/dictionary"
+import { displayCurrency } from "@/frontend/format"
 import { SubmitButton } from "@/app/submit-button"
+import { brand } from "@/shared/brand"
 
 export const dynamic = "force-dynamic"
 
@@ -33,9 +36,9 @@ export default async function Page({
       throw error
     })
 
-  const providerIcon: IconName = payment.provider === "INSTAPAY" ? "card" : payment.provider === "CRYPTO" ? "crypto" : "coins"
+  const providerIcon: IconName = payment.provider === "PAYMOB" ? "card" : payment.provider === "CRYPTO" ? "crypto" : "coins"
   const providerLabel =
-    payment.provider === "INSTAPAY"
+    payment.provider === "PAYMOB"
       ? t(locale, "account.instapay")
       : payment.provider === "CRYPTO"
         ? t(locale, "account.crypto")
@@ -55,12 +58,11 @@ export default async function Page({
           <div className="p-6 sm:p-8">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <span className="eyebrow"><Icon name="lock" size={12} />{t(locale, "account.secureCheckout")}</span>
-              <span className="hud-chip"><span className="hud-dot" />{t(locale, "account.testMode")}</span>
             </div>
 
             <h1 className="display-2 mt-4">{t(locale, "account.fakeCheckoutTitle")}</h1>
             {payment.purpose === "funding" ? (
-              <p className="lede mt-2 text-sm sm:text-base">تمويل محفظة 67 كوينز</p>
+              <p className="lede mt-2 text-sm sm:text-base">{`تمويل محفظة ${brand.coinAr}`}</p>
             ) : null}
             <p className="lede mt-2 text-sm sm:text-base">{t(locale, "account.fakeCheckoutLede")}</p>
 
@@ -73,24 +75,18 @@ export default async function Page({
                   <p className="card-kicker">{t(locale, "account.paymentMethod")}</p>
                   <p className="truncate text-sm font-bold text-ink">{providerLabel}</p>
                 </div>
-                <span className="ms-auto hud-chip">{t(locale, "account.testMode")}</span>
               </div>
 
               <p className="card-kicker mt-5">{t(locale, "account.amount")}</p>
               <p className="price mt-1">
                 <span dir="ltr">{amount}</span>
-                <span className="text-lg font-bold text-muted">{payment.amount.currency}</span>
+                <span className="text-lg font-bold text-muted">{displayCurrency(payment.amount.currency)}</span>
               </p>
             </div>
 
-            <dl className="mt-4 grid gap-2 rounded-2xl border border-line bg-surface p-4 text-sm">
-              <div className="flex items-center justify-between gap-4">
-                <dt className="text-xs font-semibold text-muted">{t(locale, "account.reference")}</dt>
-                <dd className="num text-xs font-bold text-ink" dir="ltr">{reference}</dd>
-              </div>
-            </dl>
 
-            <form action={payFake} className="mt-6 stack">
+
+            <AutoSubmitForm action={payFake} autoSubmit={payment.purpose === "order"} className="mt-6 stack">
               <input type="hidden" name="reference" value={reference} />
               <input type="hidden" name="token" value={token ?? ""} />
               <SubmitButton className="btn btn-primary btn-block min-h-12">
@@ -98,13 +94,12 @@ export default async function Page({
                 {t(locale, "account.payAmount")}
               </SubmitButton>
               <p className="text-center text-[11px] leading-relaxed text-muted">{t(locale, "account.checkoutNote")}</p>
-            </form>
+            </AutoSubmitForm>
           </div>
         </div>
 
         <div className="mt-4 flex flex-wrap justify-center gap-2">
           <span className="hud-chip"><Icon name="shield" size={12} />{t(locale, "topup.secureNote")}</span>
-          <span className="hud-chip"><Icon name="check-circle" size={12} />{t(locale, "account.testMode")}</span>
         </div>
       </div>
     </main>

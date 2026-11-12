@@ -1,7 +1,9 @@
 /**
  * Computes the coin index (micro, 1_000_000 = 1.0 = 1 cent per coin) and coin/USD-minor
- * conversions. Cost inputs are USD minor units; outputs are safe integers.
+ * conversions. Cost/price inputs are USD minor units (cents); treasury USDT outputs use
+ * milli-USDT; outputs are safe integers.
  */
+import { USDT_MILLI_PER_USD_MINOR } from "@/shared/usdt"
 
 export const COIN_INDEX_BASE = 1_000_000
 export const DEFAULT_COIN_INDEX = COIN_INDEX_BASE
@@ -60,18 +62,18 @@ export function coinsForUsdMinor(usdMinor: number, coinValueMinor: number): numb
   return coins
 }
 
-export function reservedUsdtMinor(coins: number, coinValueMinor: number): number {
+export function reservedUsdtMilli(coins: number, coinValueMinor: number): number {
   assertSafeNonNegative(coins, "coins")
   assertSafePositive(coinValueMinor, "coinValueMinor")
-  const reserved = coins * coinValueMinor
-  assertSafeInteger(reserved, "reservedUsdtMinor")
+  const reserved = coins * coinValueMinor * USDT_MILLI_PER_USD_MINOR
+  assertSafeInteger(reserved, "reservedUsdtMilli")
   return reserved
 }
 
-export function coinsForUsdtMinor(usdtMinor: number, coinValueMinor: number): number {
-  assertSafeNonNegative(usdtMinor, "usdtMinor")
+export function coinsForUsdtMilli(usdtMilli: number, coinValueMinor: number): number {
+  assertSafeNonNegative(usdtMilli, "usdtMilli")
   assertSafePositive(coinValueMinor, "coinValueMinor")
-  const coins = Math.floor(usdtMinor / coinValueMinor)
+  const coins = Math.floor(usdtMilli / (coinValueMinor * USDT_MILLI_PER_USD_MINOR))
   assertSafeInteger(coins, "coins")
   return coins
 }

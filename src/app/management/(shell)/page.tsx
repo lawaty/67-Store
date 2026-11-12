@@ -6,12 +6,11 @@
 import { adminGet } from "@/frontend/admin"
 import type { AdminDashboardDto } from "@/api/contracts"
 import { syncCatalogue } from "./actions"
-import { OperationsModeControl } from "./operations-mode-control"
 import { Icon } from "@/app/icons"
 import { SubmitButton } from "@/app/submit-button"
 import DashboardTrend from "./dashboard-trend"
 import { CoinIndexCapModal } from "./coin-index-cap-modal"
-import { formatIndex, formatMinor } from "@/frontend/format"
+import { formatIndex, formatMinor, formatUsdtMilli } from "@/frontend/format"
 import BridgeBar from "./viz/bridge-bar"
 import P2pPriceStrip from "./viz/p2p-price-strip"
 import { P2pSettingsModal } from "./p2p-settings-modal"
@@ -30,10 +29,10 @@ function p2pSourceLabel(source: AdminDashboardDto["p2p"] extends infer T ? (T ex
 export default async function AdminPage() {
   const data = await adminGet<AdminDashboardDto>("/api/admin/dashboard")
 
-  const recorded = data.treasury.recordedUsdtMinor
-  const free = data.treasury.freeUsdtMinor
-  const available = data.treasury.availableUsdtMinor
-  const live = data.balance?.usdMinor ?? null
+  const recorded = data.treasury.recordedUsdtMilli
+  const free = data.treasury.freeUsdtMilli
+  const available = data.treasury.availableUsdtMilli
+  const live = data.balance?.usdMilli ?? null
   const wacEgpMinor = data.treasury.wacEgpMinor
 
   const statusItems: { label: string; tone: VizTone; detail?: string }[] = []
@@ -41,10 +40,10 @@ export default async function AdminPage() {
     statusItems.push({ label: "الرصيد المباشر ما يتوفر", tone: "danger" })
   }
   if (free > 0) {
-    statusItems.push({ label: "USDT حر ما مسجل", tone: "gold", detail: formatMinor(free, "USDT") })
+    statusItems.push({ label: "USDT حر ما مسجل", tone: "gold", detail: formatUsdtMilli(free) })
   }
   if (available < 0) {
-    statusItems.push({ label: "عجز في المسجل", tone: "danger", detail: formatMinor(available, "USDT") })
+    statusItems.push({ label: "عجز في المسجل", tone: "danger", detail: formatUsdtMilli(available) })
   }
   if (data.treasury.coinIndexCapped) {
     statusItems.push({ label: "المؤشر مثبت عند الحد", tone: "gold" })
@@ -64,7 +63,6 @@ export default async function AdminPage() {
             <h1 className="display-2">لوحة التحكم</h1>
             <p className="lede mt-2 text-sm sm:text-base">ملخص الخزينة والأداء والتوقعات.</p>
           </div>
-          <OperationsModeControl mode={data.operations.mode} liveReady={data.operations.liveReady} />
         </div>
         <form action={syncCatalogue}>
           <SubmitButton className="btn btn-primary">
@@ -100,6 +98,7 @@ export default async function AdminPage() {
                       { label: "مسجل", minor: recorded, tone: "jade" },
                       { label: "حر (غير مسجل)", minor: free, tone: "ember" },
                     ]}
+                    format={formatUsdtMilli}
                   />
                 </div>
               </div>
@@ -109,11 +108,12 @@ export default async function AdminPage() {
                   <PartitionBar
                     total={{ label: "المسجل", minor: recorded }}
                     parts={[
-                      { label: "محجوز", minor: data.treasury.reservedUsdtMinor, tone: "sky" },
+                      { label: "محجوز", minor: data.treasury.reservedUsdtMilli, tone: "sky" },
                       { label: "متاح", minor: available, tone: available < 0 ? "danger" : "jade" },
                     ]}
                     showTotal={false}
                     emptyLabel="مفيش USDT مسجل بعد"
+                    format={formatUsdtMilli}
                   />
                 </div>
               </div>

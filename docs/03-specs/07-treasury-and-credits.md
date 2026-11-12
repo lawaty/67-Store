@@ -11,7 +11,7 @@ The behaviour of the treasury and credits use cases: recording funding, recordin
 ## Use cases
 
 - Record a funding with EGP paid and USDT received — [05 Treasury](../01-domain/05-treasury.md#funding-lots)
-- Record a customer coin deposit and reject it beyond available USDT (on `/management/coins`; customer coin deposits are separate from treasury funding, not a funding lot). Deposits are manual entries in EGP or USDT, stored as `USD`; Instapay and Crypto gateways are not live yet. The coins page lists them newest first in one operations table (date, reference, client, amount paid, price, coins, EGP value, WAC) — [06 Credits](../01-domain/06-credits.md#pre-funding-rule)
+- Record a customer coin deposit and reject it beyond available USDT (on `/management/coins`; customer coin deposits are separate from treasury funding, not a funding lot). Deposits are manual entries in EGP or USDT, stored as `USD`; Paymob is the EGP provider. Crypto is deferred. The coins page lists them newest first in one operations table (date, reference, client, amount paid, price, coins, EGP value, WAC) — [06 Credits](../01-domain/06-credits.md#pre-funding-rule)
 - Reconcile the distributor balance — [05 Treasury](../01-domain/05-treasury.md#reconciliation)
 - Refund coins on a failed delivery — [05 Payments](05-payments.md)
 
@@ -24,8 +24,8 @@ The market USDT/EGP rate comes from the P2P integration, including its history, 
 A deposit is accepted only when the new coins' reserved USDT does not exceed available USDT:
 
 ```
-reserved USDT = coins outstanding × coin value
-available USDT = recorded USDT − reserved USDT
+reserved USDT = coins outstanding × coin value (cents) × 10   (milli-USDT)
+available USDT = recorded USDT − reserved USDT                (milli-USDT)
 ```
 
 Only recorded treasury USDT counts; available USDT is recorded minus reserved. A deposit that would issue more coins than available USDT is rejected: no coins are issued and no payment is taken. See [06 Credits](../01-domain/06-credits.md#pre-funding-rule).

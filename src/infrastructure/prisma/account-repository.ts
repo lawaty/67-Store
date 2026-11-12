@@ -5,8 +5,8 @@
 import type { PrismaClient } from "@prisma/client"
 import { AccountRepository, ClientAccount } from "@/accounts"
 
-function map(row: { id: string; clientId: string; email: string; passwordHash: string }): ClientAccount {
-  return { id: row.id, clientId: row.clientId, email: row.email, passwordHash: row.passwordHash }
+function map(row: { id: string; clientId: string; email: string; username: string; passwordHash: string }): ClientAccount {
+  return { id: row.id, clientId: row.clientId, email: row.email, username: row.username, passwordHash: row.passwordHash }
 }
 
 export function createPrismaAccountRepository(db: PrismaClient): AccountRepository {
@@ -39,6 +39,7 @@ export function createPrismaAccountRepository(db: PrismaClient): AccountReposito
         rows: rows.map((row) => ({
           id: row.id,
           clientId: row.clientId,
+          username: row.username,
           email: row.email,
           coinBalance: row.client.wallet?.coinBalance ?? 0,
           createdAt: row.createdAt.toISOString(),

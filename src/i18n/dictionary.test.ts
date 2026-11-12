@@ -6,8 +6,9 @@ import { ar as topupAr } from "./messages/topup"
 import { ar as orderAr } from "./messages/order"
 import { ar as accountAr } from "./messages/account"
 import { ar as managementAr } from "./messages/management"
+import { ar as legalAr } from "./messages/legal"
 
-const allAr = { ...ar, ...homeAr, ...topupAr, ...orderAr, ...accountAr, ...managementAr }
+const allAr = { ...ar, ...homeAr, ...topupAr, ...orderAr, ...accountAr, ...managementAr, ...legalAr }
 
 describe("i18n dictionaries", () => {
   it("have exactly the same key set for ar and en", () => {

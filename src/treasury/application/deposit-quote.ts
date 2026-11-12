@@ -3,14 +3,15 @@
  * rate, and checks coin coverage, without recording anything.
  */
 import { CurrencyCode, isCurrencyCode } from "../../shared/money"
+import { USDT_MILLI_PER_USDT } from "../../shared/usdt"
 import { Deposit, deposit, coinsForDeposit } from "../domain/deposit"
 import { TreasuryService } from "./service"
 import type { CoinSupplyRepository } from "@/wallet"
 import { SettingsRepository } from "@/shared/settings-repository"
 import { readDepositRate } from "@/treasury/application/deposit-settings"
 import { readEgpRate } from "@/treasury/application/exchange-rate"
-import { availableUsdtMinor } from "../domain/wac"
-import { reservedUsdtMinor } from "../domain/coin-index"
+import { availableUsdtMilli } from "../domain/wac"
+import { reservedUsdtMilli } from "../domain/coin-index"
 
 export type DepositQuote = {
   readonly currency: CurrencyCode
@@ -97,8 +98,8 @@ export function createQuoteDeposit(deps: {
     }
 
     if (
-      reservedUsdtMinor(coins, coinValueMinor) >
-      availableUsdtMinor(recordedUsdt, reservedUsdtMinor(outstanding, coinValueMinor))
+      reservedUsdtMilli(coins, coinValueMinor) >
+      availableUsdtMilli(recordedUsdt, reservedUsdtMilli(outstanding, coinValueMinor))
     ) {
       return { ok: false, error: "coverage" }
     }
@@ -108,7 +109,7 @@ export function createQuoteDeposit(deps: {
       egpValueMinor = input.amountMinor
     } else {
       egpValueMinor = Math.round(
-        (reservedUsdtMinor(coins, coinValueMinor) * Math.round((await readEgpRate(deps.settings)) * 100)) / 100,
+        (reservedUsdtMilli(coins, coinValueMinor) * Math.round((await readEgpRate(deps.settings)) * 100)) / USDT_MILLI_PER_USDT,
       )
     }
 

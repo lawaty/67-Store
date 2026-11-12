@@ -1,13 +1,13 @@
 /**
  * Reads and writes the storefront default payment method, validating against
- * allowed methods and falling back to instapay when unset or invalid.
+ * allowed methods and falling back to paymob when unset or invalid.
  */
 import type { SettingsRepository } from "@/shared/settings-repository"
 
-export const STOREFRONT_METHODS = ["instapay", "crypto", "coins"] as const
+export const STOREFRONT_METHODS = ["paymob", "crypto", "coins"] as const
 export type StorefrontMethod = (typeof STOREFRONT_METHODS)[number]
 export const STOREFRONT_DEFAULT_METHOD_KEY = "storefront:default_method"
-export const DEFAULT_STOREFRONT_METHOD: StorefrontMethod = "instapay"
+export const DEFAULT_STOREFRONT_METHOD: StorefrontMethod = "paymob"
 
 export function isStorefrontMethod(value: string): value is StorefrontMethod {
   return (STOREFRONT_METHODS as readonly string[]).includes(value)

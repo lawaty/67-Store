@@ -7,6 +7,9 @@ import { adminGet } from "@/frontend/admin"
 import type { AdminOrderPageDto, OrderStatusDto } from "@/api/contracts"
 import { statusClass, statusLabel } from "@/app/status-label"
 import { Icon } from "@/app/icons"
+import { formatMinor, formatUsdtMilli } from "@/frontend/format"
+import { ClickableCard, ClickableRow } from "../../clickable-row"
+import { Avatar } from "@/app/avatar"
 
 export const dynamic = "force-dynamic"
 
@@ -21,8 +24,14 @@ const ALL_STATUSES: OrderStatusDto[] = [
   "REFUNDED",
 ]
 
-function formatMoney(minor: number) {
-  return `${(minor / 100).toFixed(2)} ج.م`
+function currencyLabel(currency: string): string {
+  return currency === "USD" ? "USDT" : currency
+}
+function formatMoney(minor: number, currency: string): string {
+  return `${formatMinor(minor, currency)} ${currencyLabel(currency)}`
+}
+function formatExactCost(usdtMilli: number, currency: string): string {
+  return `${formatUsdtMilli(usdtMilli)} ${currencyLabel(currency)}`
 }
 
 function formatDate(value: string | null) {
@@ -69,7 +78,10 @@ export default async function OrdersPage({
     return `/management/orders${qs === "" ? "" : `?${qs}`}`
   }
 
-  const hasDiscountOrCost = rows.some((row) => row.discountMinor !== null) || rows.some((row) => row.costMinor !== null)
+  const hasDiscountOrCost =
+    rows.some((row) => row.discountMinor !== null) ||
+    rows.some((row) => row.costMinor !== null) ||
+    rows.some((row) => row.costUsdtMilli !== null)
 
   return (
     <main dir="rtl">
@@ -102,7 +114,7 @@ export default async function OrdersPage({
           </div>
           <div className="field lg:col-span-2">
             <label htmlFor="q">بحث</label>
-            <input id="q" type="text" name="q" placeholder="token / userId / serverId" defaultValue={q} />
+            <input id="q" type="text" name="q" placeholder="التوكن / معرّف المستخدم / معرّف السيرفر" defaultValue={q} />
           </div>
         </div>
         <div className="mt-3 flex justify-end">
@@ -119,9 +131,9 @@ export default async function OrdersPage({
               <thead>
                 <tr>
                   <th>الطلب</th>
-                  <th>معرف العميل</th>
+                  <th>المستخدم</th>
                   <th>اسم المنتج</th>
-                  <th>اللاعب</th>
+                  <th>الملف</th>
                   <th>السعر</th>
                   {hasDiscountOrCost ? <th>الخصم</th> : null}
                   {hasDiscountOrCost ? <th>التكلفة</th> : null}
@@ -131,25 +143,57 @@ export default async function OrdersPage({
               </thead>
               <tbody>
                 {rows.map((order) => (
-                  <tr key={order.id}>
+                  <ClickableRow key={order.id} href={`/order/${order.token}`}>
                     <td>
                       <a className="num text-sm font-bold text-ember hover:underline" href={`/order/${order.token}`}>
                         {order.token.slice(0, 8).toUpperCase()}
                       </a>
                     </td>
-                    <td><span className="num text-sm">{order.clientId ?? "—"}</span></td>
+                    <td>
+                      <div className="relative group inline-flex items-center gap-2">
+                        <Avatar name={order.user.username ?? "?"} size="sm" />
+                        {order.user.id !== null ? (
+                          <a href={`/management/users/${order.user.id}`} className="text-sm font-semibold text-ember hover:underline">
+                            {order.user.username ?? "—"}
+                          </a>
+                        ) : (
+                          <span className="text-sm">{order.user.username ?? "ضيف"}</span>
+                        )}
+                        <div className="absolute z-30 start-0 top-full mt-2 w-56 rounded-xl border border-line bg-surface p-3 shadow-e2 opacity-0 pointer-events-none group-hover:opacity-100 group-focus-within:opacity-100 transition">
+                          <div className="flex items-center gap-3">
+                            <Avatar name={order.user.username ?? "?"} size="md" />
+                            <div className="min-w-0">
+                              <p className="font-bold text-ink truncate">{order.user.username ?? "ضيف"}</p>
+                              <p className="text-sm text-muted truncate" dir="ltr">{order.user.email ?? "—"}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </td>
                     <td className="font-semibold">{order.productName}</td>
-                    <td><span className="num text-sm" dir="ltr">{`${order.player.userId} / ${order.player.serverId}`}</span></td>
-                    <td><span className="num font-bold" dir="ltr">{formatMoney(order.price.minor)}</span></td>
+                    <td>
+                      <span className="num text-sm" dir="ltr">
+                        {`${order.profile.game.toUpperCase()} · ${order.profile.userId}/${order.profile.serverId}`}
+                      </span>
+                    </td>
+                    <td><span className="num font-bold" dir="ltr">{formatMoney(order.price.minor, order.price.currency)}</span></td>
                     {hasDiscountOrCost ? (
-                      <td>{order.discountMinor !== null ? <span className="num" dir="ltr">{formatMoney(order.discountMinor)}</span> : "-"}</td>
+                      <td>{order.discountMinor !== null ? <span className="num" dir="ltr">{formatMoney(order.discountMinor, order.price.currency)}</span> : "-"}</td>
                     ) : null}
                     {hasDiscountOrCost ? (
-                      <td>{order.costMinor !== null ? <span className="num" dir="ltr">{formatMoney(order.costMinor)}</span> : "-"}</td>
+                      <td>
+                        {order.costUsdtMilli != null ? (
+                          <span className="num" dir="ltr">{formatExactCost(order.costUsdtMilli, order.price.currency)}</span>
+                        ) : order.costMinor !== null ? (
+                          <span className="num" dir="ltr">{formatMoney(order.costMinor, order.price.currency)}</span>
+                        ) : (
+                          "-"
+                        )}
+                      </td>
                     ) : null}
                     <td><span className={statusClass(order.status)}>{statusLabel(order.status)}</span></td>
                     <td><span className="num text-sm text-muted">{formatDate(order.createdAt)}</span></td>
-                  </tr>
+                  </ClickableRow>
                 ))}
               </tbody>
             </table>
@@ -157,18 +201,37 @@ export default async function OrdersPage({
 
           <div className="table-cards mt-4">
             {rows.map((order) => (
-              <a key={order.id} href={`/order/${order.token}`} className="rounded-2xl border border-line bg-surface p-4 shadow-e1 transition hover:border-ember/30">
+              <ClickableCard key={order.id} href={`/order/${order.token}`} className="rounded-2xl border border-line bg-surface p-4 shadow-e1 transition hover:border-ember/30 cursor-pointer">
                 <div className="flex items-center justify-between gap-3">
-                  <span className="num text-sm font-bold text-ember">#{order.token.slice(0, 8).toUpperCase()}</span>
+                  <a href={`/order/${order.token}`} className="num text-sm font-bold text-ember hover:underline">
+                    #{order.token.slice(0, 8).toUpperCase()}
+                  </a>
                   <span className={statusClass(order.status)}>{statusLabel(order.status)}</span>
                 </div>
                 <p className="mt-2 text-sm font-bold text-ink">{order.productName}</p>
-                <p className="num mt-1 text-xs text-muted" dir="ltr">{order.player.userId} / {order.player.serverId}</p>
+                <div className="mt-2 space-y-1 text-sm">
+                  <div className="flex items-center gap-2">
+                    <Avatar name={order.user.username ?? "?"} size="sm" />
+                    <div className="min-w-0">
+                      {order.user.id !== null ? (
+                        <a href={`/management/users/${order.user.id}`} className="font-semibold text-ember hover:underline">
+                          {order.user.username ?? "—"}
+                        </a>
+                      ) : (
+                        <span className="font-semibold">{order.user.username ?? "ضيف"}</span>
+                      )}
+                      <p className="text-xs text-muted truncate" dir="ltr">{order.user.email ?? "—"}</p>
+                    </div>
+                  </div>
+                  <p className="num text-xs text-muted" dir="ltr">
+                    {`${order.profile.game.toUpperCase()} · ${order.profile.userId}/${order.profile.serverId}`}
+                  </p>
+                </div>
                 <div className="mt-3 flex items-center justify-between gap-3">
-                  <span className="num text-sm font-bold text-ink" dir="ltr">{formatMoney(order.price.minor)}</span>
+                  <span className="num text-sm font-bold text-ink" dir="ltr">{formatMoney(order.price.minor, order.price.currency)}</span>
                   <span className="num text-xs text-muted">{formatDate(order.createdAt)}</span>
                 </div>
-              </a>
+              </ClickableCard>
             ))}
           </div>
         </>

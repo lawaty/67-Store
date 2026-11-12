@@ -1,6 +1,7 @@
 /**
  * Defines the API boundary DTOs for admin dashboards, reports, settings,
- * users, and promos; money values are integer minor units.
+ * users, and promos; money values are integer minor units, except treasury USDT
+ * quantities which are milli-USDT (1 USDT = 1000).
  */
 
 import type { MoneyDto } from "./money"
@@ -9,6 +10,17 @@ import type { StorefrontMethodDto } from "./storefront"
 import type { WalletEntryDto } from "./account"
 
 export type P2pRateSourceDto = "binance-p2p" | "settings:manual" | "settings:last-known"
+
+export type AdminUserOrderDto = {
+  readonly token: string
+  readonly status: OrderStatusDto
+  readonly productName: string
+  readonly game: string
+  readonly userId: string
+  readonly serverId: string
+  readonly price: MoneyDto
+  readonly createdAt: string | null
+}
 
 export type P2pPriceRangeDto = {
   readonly minEgpPerUsdtMinor: number
@@ -20,12 +32,12 @@ export type P2pPriceRangeDto = {
 }
 
 export type AdminStatsDto = {
-  readonly balanceUsdtMinor: number | null
+  readonly balanceUsdtMilli: number | null
   readonly p2pEgpPerUsdtMinor: number | null
   readonly wacEgpMinor: number | null
-  readonly availableUsdtMinor: number | null
-  readonly recordedUsdtMinor: number | null
-  readonly reservedUsdtMinor: number | null
+  readonly availableUsdtMilli: number | null
+  readonly recordedUsdtMilli: number | null
+  readonly reservedUsdtMilli: number | null
   readonly balanceError: boolean
   readonly updatedAt: string
 }
@@ -33,12 +45,15 @@ export type AdminStatsDto = {
 export type AdminOrderRowDto = {
   readonly id: string
   readonly token: string
-  readonly clientId: string | null
+  readonly user: { readonly id: string | null; readonly username: string | null; readonly email: string | null }
+  readonly profile: { readonly game: string; readonly userId: string; readonly serverId: string }
   readonly productName: string
   readonly player: { readonly userId: string; readonly serverId: string }
   readonly price: MoneyDto
   readonly discountMinor: number | null
   readonly costMinor: number | null
+  readonly costUsdtMilli: number | null
+  readonly coinsCharged: number | null
   readonly status: OrderStatusDto
   readonly createdAt: string | null
 }
@@ -99,6 +114,7 @@ export type AdminSettingsDto = {
 export type AdminUserRowDto = {
   readonly id: string
   readonly clientId: string
+  readonly username: string
   readonly email: string
   readonly coinBalance: number
   readonly createdAt: string
@@ -111,13 +127,27 @@ export type AdminUserPageDto = {
 }
 
 export type AdminUserDetailDto = {
-  readonly account: { readonly id: string; readonly email: string; readonly clientId: string }
+  readonly account: { readonly id: string; readonly email: string; readonly username: string; readonly clientId: string }
   readonly wallet: { readonly coinBalance: number }
   readonly entries: readonly WalletEntryDto[]
   readonly coinsConsumed30d: number
   readonly markupBasisPoints: number
   readonly nextBreakpoint: { readonly coins: number; readonly basisPoints: number } | null
   readonly override: { readonly basisPoints: number; readonly note?: string; readonly updatedAt: string } | null
+  readonly level: {
+    readonly key: string
+    readonly title: string
+    readonly icon: string
+    readonly color: string
+    readonly coins: number
+    readonly basisPoints: number
+  }
+  readonly stats: {
+    readonly totalOrders: number
+    readonly totalPaidCoins: number
+    readonly monthlyPaidCoins: number
+  }
+  readonly orders: readonly AdminUserOrderDto[]
 }
 
 export type AdminClientProjectionDto = {
@@ -132,22 +162,21 @@ export type AdminClientProjectionDto = {
 }
 
 export type AdminDashboardDto = {
-  readonly balance: { readonly usdMinor: number; readonly egpMinor: number } | null
+  readonly balance: { readonly usdMilli: number; readonly egpMinor: number } | null
   readonly balanceAt: string | null
   readonly balanceError: boolean
   readonly unfulfillableCount: number
   readonly showWarning: boolean
-  readonly operations: { readonly mode: "live" | "sandbox"; readonly liveReady: boolean }
   readonly treasury: {
-    readonly expectedUsdtMinor: number
-    readonly recordedUsdtMinor: number
-    readonly freeUsdtMinor: number
+    readonly expectedUsdtMilli: number
+    readonly recordedUsdtMilli: number
+    readonly freeUsdtMilli: number
     readonly wacEgpMinor: number
     readonly basisEgpMinor: number
     readonly breakEvenEgpMinor: number
     readonly coinsOutstanding: number
-    readonly reservedUsdtMinor: number
-    readonly availableUsdtMinor: number
+    readonly reservedUsdtMilli: number
+    readonly availableUsdtMilli: number
     readonly coverageBasisPoints: number
     readonly availableCoins: number
     readonly averageCoinFundingCostEgpMinor: number
@@ -205,3 +234,19 @@ export type AdminDashboardDto = {
     readonly series: readonly { readonly day: string; readonly ordersCount: number; readonly revenueUsdMinor: number; readonly marginUsdMinor: number; readonly coinsSold: number }[]
   }
 }
+
+export type AdminAchievementType = "TOTAL_ORDERS" | "ORDERS_PER_MONTH" | "ORDERS_PER_WEEK"
+
+export type AdminAchievementDto = {
+  readonly id: string
+  readonly title: string
+  readonly description: string
+  readonly icon: string
+  readonly color: string
+  readonly type: AdminAchievementType
+  readonly target: number
+  readonly active: boolean
+  readonly sortOrder: number
+}
+
+export type AdminAchievementInput = Omit<AdminAchievementDto, "id">

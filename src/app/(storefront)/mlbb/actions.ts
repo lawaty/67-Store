@@ -21,15 +21,16 @@ export async function startCheckout(formData: FormData): Promise<void> {
     productId: String(formData.get("product") ?? ""),
     method: method === null ? "egp" : String(method),
     profileId: String(formData.get("profileId") ?? ""),
-    label: String(formData.get("label") ?? ""),
     userId: String(formData.get("userId") ?? ""),
     serverId: String(formData.get("serverId") ?? ""),
     promoCode: String(formData.get("promoCode") ?? ""),
     locale,
+    termsAccepted: formData.get("termsAccepted") === "on",
   })
 
   if (result.ok) redirect(result.redirectUrl)
   if (result.error === "login") redirect("/account/login?next=" + encodeURIComponent(returnTo))
+  if (typeof result.redirectUrl === "string" && result.redirectUrl !== "") redirect(result.redirectUrl)
   redirect(returnTo + "?error=" + result.error)
 }
 
@@ -38,7 +39,6 @@ export async function addProfileFromTopup(formData: FormData): Promise<void> {
 
   try {
     await (await serverApi()).post("/api/account/profiles", {
-      label: String(formData.get("label") ?? ""),
       game: String(formData.get("game") ?? "mlbb"),
       userId: String(formData.get("userId") ?? ""),
       serverId: String(formData.get("serverId") ?? ""),

@@ -9,12 +9,12 @@ const nav = vi.hoisted(() => ({ pathname: "/management" }))
 vi.mock("next/navigation", () => ({ usePathname: () => nav.pathname }))
 
 const sample: AdminStatsDto = {
-  balanceUsdtMinor: 123456,
+  balanceUsdtMilli: 1234560,
   p2pEgpPerUsdtMinor: 5123,
   wacEgpMinor: 4987,
-  availableUsdtMinor: 4567,
-  recordedUsdtMinor: 70000,
-  reservedUsdtMinor: 65433,
+  availableUsdtMilli: 45670,
+  recordedUsdtMilli: 700000,
+  reservedUsdtMilli: 654330,
   balanceError: false,
   updatedAt: "2026-11-05T10:30:00.000Z",
 }
@@ -65,10 +65,10 @@ describe("SidebarStats", () => {
     expect(screen.getByText("WAC")).toBeTruthy()
     expect(screen.getByText("المتاح")).toBeTruthy()
 
-    expect(screen.getByText("1,234.56")).toBeTruthy()
+    expect(screen.getByText("1,234.560")).toBeTruthy()
     expect(screen.getByText("51.23 ج.م")).toBeTruthy()
     expect(screen.getByText("49.87 ج.م")).toBeTruthy()
-    expect(screen.getAllByText("45.67").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("45.670").length).toBeGreaterThan(0)
 
     // Compact partition legend in the desktop layout.
     expect(screen.getByText("محجوز")).toBeTruthy()
@@ -83,14 +83,14 @@ describe("SidebarStats", () => {
   })
 
   it("a negative available value gets the danger class", async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ ...sample, availableUsdtMinor: -123 }))
+    fetchMock.mockResolvedValue(jsonResponse({ ...sample, availableUsdtMilli: -1230 }))
     const { container } = render(<SidebarStats />)
     await flush()
     expect(screen.getByText("المتاح")).toBeTruthy()
-    expect(screen.getAllByText("-1.23").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("-1.230").length).toBeGreaterThan(0)
     const danger = container.querySelector(".text-danger")
     expect(danger).not.toBeNull()
-    expect(danger?.textContent).toContain("-1.23")
+    expect(danger?.textContent).toContain("-1.230")
   })
 
   it("fetches on mount", async () => {

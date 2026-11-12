@@ -1,14 +1,14 @@
 /**
  * Funding lot value object: every lot carries the total EGP paid (including
- * fees) alongside the received USDT. WAC is derived as
- * egpPaidMinor * 100 / usdtMinor per USDT. All invariants use safe integers.
+ * fees) alongside the received USDT in milli-USDT. WAC is derived as
+ * egpPaidMinor * 1000 / usdtMilli (EGP minor per 1 USDT). All invariants use safe integers.
  */
 export { inferredEgpPerUsdtMinor } from "@/shared/funding"
 
 export type Funding = {
   readonly id: string
   readonly egpPaidMinor: number
-  readonly usdtMinor: number
+  readonly usdtMilli: number
   readonly createdAt: string
 }
 
@@ -26,12 +26,12 @@ function normalizeIdCreated(input: { id: string; createdAt: string }): { id: str
 
 function assertAmounts(input: {
   egpPaidMinor: number
-  usdtMinor: number
+  usdtMilli: number
 }): void {
   if (!Number.isSafeInteger(input.egpPaidMinor) || input.egpPaidMinor <= 0) {
     throw new RangeError()
   }
-  if (!Number.isSafeInteger(input.usdtMinor) || input.usdtMinor <= 0) {
+  if (!Number.isSafeInteger(input.usdtMilli) || input.usdtMilli <= 0) {
     throw new RangeError()
   }
 }
@@ -40,12 +40,12 @@ export function funding(input: Funding): Funding {
   const { id, createdAt } = normalizeIdCreated(input)
   assertAmounts(input)
 
-  const { egpPaidMinor, usdtMinor } = input
+  const { egpPaidMinor, usdtMilli } = input
 
   return Object.freeze({
     id,
     egpPaidMinor,
-    usdtMinor,
+    usdtMilli,
     createdAt,
   })
 }

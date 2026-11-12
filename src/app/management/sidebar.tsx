@@ -8,6 +8,7 @@ import { usePathname } from "next/navigation"
 import { Icon } from "@/app/icons"
 import { ThemeToggle } from "@/app/theme-toggle"
 import { SidebarStats } from "./sidebar-stats"
+import { brand } from "@/shared/brand"
 
 const links = [
   { href: "/management", label: "لوحة التحكم", icon: "dashboard" as const },
@@ -18,6 +19,8 @@ const links = [
   { href: "/management/orders", label: "الطلبات", icon: "receipt" as const },
   { href: "/management/products", label: "المنتجات", icon: "package" as const },
   { href: "/management/promos", label: "كوبونات الخصم", icon: "tag" as const },
+  { href: "/management/achievements", label: "الإنجازات", icon: "star" as const },
+  { href: "/management/settings", label: "الإعدادات", icon: "settings" as const },
 ]
 
 export function Sidebar() {
@@ -25,7 +28,7 @@ export function Sidebar() {
   return (
     <nav className="mg-sidebar" aria-label="إدارة">
       <div className="mb-4 flex items-center gap-2 border-b border-line px-2 pb-4">
-        <img src="/logo-64.png" srcSet="/logo-64.png 1x, /logo-128.png 2x" alt="" width={53} height={36} decoding="async" className="h-9 w-auto" />
+        <img src={brand.logo64} srcSet={`${brand.logo64} 1x, ${brand.logo128} 2x`} alt="" width={53} height={36} decoding="async" className="h-9 w-auto" />
         <div className="min-w-0">
           <p className="text-xs text-muted">لوحة الإدارة</p>
         </div>

@@ -13,22 +13,35 @@ function fakeDb(queryResults: Array<any>[]) {
 }
 
 describe("createPrismaTreasuryReportRepository.wacSeriesSince", () => {
-  it("two series with funding on day 1 and consumption on day 2 produce a decreasing-cost point on day 2", async () => {
+  it("a consumption-only day does not move the funding-derived WAC", async () => {
     const db = fakeDb([
       // funding
       [
-        { day: "2026-01-01", usdtMinor: 1000, basisEgpMinor: 30000 },
+        { day: "2026-01-01", usdtMilli: 10000, basisEgpMinor: 30000 },
       ],
       // consumption
       [
-        { day: "2026-01-02", usdtMinor: 500, basisEgpMinor: 16000 },
+        { day: "2026-01-02", usdtMilli: 5000, basisEgpMinor: 16000 },
       ],
     ])
     const repo = createPrismaTreasuryReportRepository(db)
     const res = await repo.wacSeriesSince("2026-01-01")
     expect(res).toEqual([
       { day: "2026-01-01", wacEgpMinor: 3000 },
-      { day: "2026-01-02", wacEgpMinor: 2800 },
+      { day: "2026-01-02", wacEgpMinor: 3000 },
+    ])
+  })
+
+  it("a consumption that drains the funding balance makes the WAC zero", async () => {
+    const db = fakeDb([
+      [ { day: "2026-01-01", usdtMilli: 10000, basisEgpMinor: 30000 } ],
+      [ { day: "2026-01-02", usdtMilli: 10000, basisEgpMinor: 30000 } ],
+    ])
+    const repo = createPrismaTreasuryReportRepository(db)
+    const res = await repo.wacSeriesSince("2026-01-01")
+    expect(res).toEqual([
+      { day: "2026-01-01", wacEgpMinor: 3000 },
+      { day: "2026-01-02", wacEgpMinor: 0 },
     ])
   })
 
@@ -36,7 +49,7 @@ describe("createPrismaTreasuryReportRepository.wacSeriesSince", () => {
     const db = fakeDb([
       // funding all
       [
-        { day: "2026-01-01", usdtMinor: 1000, basisEgpMinor: 30000 },
+        { day: "2026-01-01", usdtMilli: 10000, basisEgpMinor: 30000 },
       ],
       // consumption
       [],
@@ -56,7 +69,7 @@ describe("createPrismaTreasuryReportRepository.wacSeriesSince", () => {
   it("malformed row → throw", async () => {
     const db = fakeDb([
       [
-        { day: "bad", usdtMinor: 1000, basisEgpMinor: 30000 },
+        { day: "bad", usdtMilli: 1000, basisEgpMinor: 30000 },
       ],
       [],
     ])

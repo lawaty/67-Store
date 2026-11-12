@@ -13,7 +13,7 @@ export function LocaleSwitcher({ locale }: { locale: Locale }) {
   const [pending, startTransition] = useTransition()
   const target: Locale = locale === "ar" ? "en" : "ar"
   const label = locale === "ar" ? "English" : "العربية"
-  const ariaLabel = locale === "ar" ? "Switch to English" : "التبديل إلى العربية"
+  const ariaLabel = locale === "ar" ? "التبديل إلى الإنجليزية" : "التبديل إلى العربية"
 
   const onClick = () => {
     document.cookie = `locale=${target}; path=/; max-age=31536000; samesite=lax`

@@ -37,7 +37,7 @@ flowchart LR
   O["Operator<br/><i>runs the back office</i>"]
   S["<b>67 Store</b><br/>sells topups, follows each order"]
   G["G2Bulk<br/><i>distributor</i>"]
-  PM["InstaPay<br/><i>EGP payments</i>"]
+  PM["Paymob<br/><i>EGP payments</i>"]
   CR["Crypto provider<br/><i>USD payments</i>"]
   C -->|buys topups| S
   O -->|operates| S
@@ -61,7 +61,7 @@ flowchart LR
     DB[("<b>Database</b><br/>MariaDB<br/><i>clients, catalogue, orders, payments</i>")]
   end
   G["G2Bulk<br/><i>distributor</i>"]
-  PM["InstaPay<br/><i>EGP</i>"]
+  PM["Paymob<br/><i>EGP</i>"]
   CR["Crypto provider<br/><i>USD</i>"]
   C --> WEB
   O --> WEB

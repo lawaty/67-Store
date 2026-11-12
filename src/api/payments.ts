@@ -14,7 +14,7 @@ export type FakePaymentView = {
 }
 
 export function paymentProviderFor(reference: string): PaymentProviderName {
-  return reference.startsWith("fake_crypto_") ? "CRYPTO" : "INSTAPAY"
+  return reference.startsWith("fake_crypto_") ? "CRYPTO" : "PAYMOB"
 }
 
 export async function readFakePayment(c: Container, reference: string): Promise<FakePaymentView | null> {

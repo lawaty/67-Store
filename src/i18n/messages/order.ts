@@ -34,6 +34,11 @@ export const ar = {
   "order.help": "محتاج مساعدة؟",
   "order.playerCard": "بطاقة اللاعب",
   "order.receipt": "إيصال الطلب",
+  "order.resumePayment": "استئناف الدفع",
+  "order.paymentMethod": "طريقة الدفع",
+  "order.methodEgp": "جنيه مصري / بيموب",
+  "order.methodUsdt": "USDT / كريبتو",
+  "order.resumeFailed": "تعذر بدء الدفع. حاول مرة أخرى.",
 } as const
 
 export const en: Record<keyof typeof ar, string> = {
@@ -69,4 +74,9 @@ export const en: Record<keyof typeof ar, string> = {
   "order.help": "Need help?",
   "order.playerCard": "Player card",
   "order.receipt": "Order receipt",
+  "order.resumePayment": "Resume payment",
+  "order.paymentMethod": "Payment method",
+  "order.methodEgp": "EGP / Paymob",
+  "order.methodUsdt": "USDT / Crypto",
+  "order.resumeFailed": "Payment could not be started. Please try again.",
 }

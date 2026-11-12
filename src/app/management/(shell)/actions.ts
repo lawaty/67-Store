@@ -89,17 +89,4 @@ export async function saveP2pSettings(formData: FormData): Promise<void> {
   redirect("/management")
 }
 
-export async function saveOperationsMode(formData: FormData): Promise<void> {
-  const mode = String(formData.get("mode") ?? "")
 
-  try {
-    await (await serverApi()).post("/api/admin/operations-mode", { mode })
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 401) redirect("/management/login")
-    if (error instanceof ApiError) redirect("/management?mode_error=1")
-    throw error
-  }
-
-  revalidatePath("/management")
-  redirect("/management")
-}

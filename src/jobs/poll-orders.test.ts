@@ -11,6 +11,7 @@ function makeFulfillingOrder(id = "o1") {
   const o = order({
     id,
     token: `t${id}`,
+    profileId: "p1",
     client: client("c1"),
     product: product({ id: "mlbb:2793", game: "mlbb", distributorId: "2793", name: "55", cost: money(73, "USD") }),
     player: player("1", "2"),
@@ -31,7 +32,7 @@ describe("createPollOrders", () => {
     const sync = vi.fn().mockImplementation(async (o: any) => o)
     const poll = createPollOrders({ orders: repo, syncFulfilment: sync })
     const res = await poll()
-    expect(repo.listByStatus).toHaveBeenCalledWith("FULFILLING", 100)
+    expect(repo.listByStatus).toHaveBeenCalledWith("FULFILLING", 100, 0)
     expect(res.checked).toBe(2)
     expect(res.updated).toBe(0)
     expect(res.failed).toBe(0)
@@ -99,5 +100,23 @@ describe("createPollOrders", () => {
     resolveFirst!(o1)
     await run
     expect(sync).toHaveBeenCalledTimes(2)
+  })
+
+  it("pages through a FULFILLING backlog", async () => {
+    const first = Array.from({ length: 100 }, (_, i) => makeFulfillingOrder(`o${i}`))
+    const second = [makeFulfillingOrder("x1"), makeFulfillingOrder("x2")]
+    const repo = {
+      listByStatus: vi.fn()
+        .mockResolvedValueOnce(first)
+        .mockResolvedValueOnce(second),
+      sumCoinsChargedSince: vi.fn().mockResolvedValue(0),
+    } as unknown as OrderRepository
+    const sync = vi.fn().mockImplementation(async (o: any) => o)
+    const poll = createPollOrders({ orders: repo, syncFulfilment: sync })
+    const res = await poll()
+    expect(repo.listByStatus).toHaveBeenNthCalledWith(1, "FULFILLING", 100, 0)
+    expect(repo.listByStatus).toHaveBeenNthCalledWith(2, "FULFILLING", 100, 100)
+    expect(repo.listByStatus).toHaveBeenCalledTimes(2)
+    expect(res.checked).toBe(102)
   })
 })

@@ -147,6 +147,9 @@ describe("architecture boundaries", () => {
         if (relPath === "src/api/container.ts" && specifier === "@/infrastructure/prisma/client") continue
         if (relPath === "src/api/webhooks.ts" && specifier === "@/integration/g2bulk/webhook-signature") continue
         if (relPath === "src/app/api/webhooks/g2bulk/route.ts" && specifier === "@/integration/g2bulk/webhook-signature") continue
+        // Paymob pair treated exactly like the G2Bulk pair.
+        if (relPath === "src/app/api/webhooks/paymob/route.ts" && specifier === "@/integration/paymob/webhook-signature") continue
+        if (relPath === "src/app/api/webhooks/paymob/route.test.ts" && specifier === "@/integration/paymob/webhook-signature") continue
         
         
         const sourceFeature = getFeatureFromPath(relPath)

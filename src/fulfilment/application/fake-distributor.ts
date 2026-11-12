@@ -5,7 +5,7 @@
  */
 import { Distributor } from "../ports/distributor"
 
-const BALANCE_MINOR = 99_999_999
+const BALANCE_MILLI = 999_999_990
 
 export function createFakeDistributor(): Distributor {
   return {
@@ -26,7 +26,7 @@ export function createFakeDistributor(): Distributor {
     },
 
     async getBalance() {
-      return { balanceMinor: BALANCE_MINOR }
+      return { balanceMilli: BALANCE_MILLI }
     },
   }
 }

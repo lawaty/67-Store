@@ -7,6 +7,7 @@ import { player } from "@/ordering"
 import { createStartPayment } from "./start-payment"
 import { PaymentProvider } from "../ports/payment-provider"
 import { PaymentRepository } from "../ports/payment-repository"
+import { payment } from "../domain/payment"
 import { PaymentError } from "../domain/payment-error"
 
 function makeOrder() {
@@ -16,6 +17,7 @@ function makeOrder() {
   let o = order({
     id: "o1",
     token: "t1",
+    profileId: "p1",
     client: c,
     product: pr,
     player: pl,
@@ -31,7 +33,7 @@ describe("start-payment", () => {
     const o = makeOrder()
     const chargeCalls: any[] = []
     const provider: PaymentProvider = {
-      name: "INSTAPAY",
+      name: "PAYMOB",
       charge: async (req) => {
         chargeCalls.push(req)
         return { providerReference: "ref123", redirectUrl: "/r/123" }
@@ -43,15 +45,17 @@ describe("start-payment", () => {
       save: async (p) => {
         saved.push(p)
       },
+      saveIfAbsent: async () => true,
       findByProviderReference: async () => null,
+      findByOrderId: async () => [],
       markStatus: async () => {},
     }
     const start = createStartPayment({
-      providers: { INSTAPAY: provider, CRYPTO: provider, COINS: provider },
+      providers: { PAYMOB: provider, CRYPTO: provider, COINS: provider },
       payments: repo,
       newId: () => "p1",
     })
-    await start({ order: o, provider: "INSTAPAY", returnUrl: "https://x/y" })
+    await start({ order: o, provider: "PAYMOB", returnUrl: "https://x/y" })
     expect(chargeCalls[0].orderId).toBe("o1")
     expect(chargeCalls[0].amount).toEqual(money(12000, "USD"))
     expect(chargeCalls[0].returnUrl).toBe("https://x/y")
@@ -60,7 +64,7 @@ describe("start-payment", () => {
   it("saves a PENDING payment carrying the provider reference and the order price", async () => {
     const o = makeOrder()
     const provider: PaymentProvider = {
-      name: "INSTAPAY",
+      name: "PAYMOB",
       charge: async () => ({ providerReference: "ref123", redirectUrl: "/r/123" }),
       verify: async () => "PAID",
     }
@@ -69,15 +73,17 @@ describe("start-payment", () => {
       save: async (p) => {
         saved.push(p)
       },
+      saveIfAbsent: async () => true,
       findByProviderReference: async () => null,
+      findByOrderId: async () => [],
       markStatus: async () => {},
     }
     const start = createStartPayment({
-      providers: { INSTAPAY: provider, CRYPTO: provider, COINS: provider },
+      providers: { PAYMOB: provider, CRYPTO: provider, COINS: provider },
       payments: repo,
       newId: () => "p1",
     })
-    await start({ order: o, provider: "INSTAPAY", returnUrl: "https://x/y" })
+    await start({ order: o, provider: "PAYMOB", returnUrl: "https://x/y" })
     expect(saved.length).toBe(1)
     expect(saved[0].status).toBe("PENDING")
     expect(saved[0].providerReference).toBe("ref123")
@@ -87,21 +93,23 @@ describe("start-payment", () => {
   it("returns the provider redirect url", async () => {
     const o = makeOrder()
     const provider: PaymentProvider = {
-      name: "INSTAPAY",
+      name: "PAYMOB",
       charge: async () => ({ providerReference: "ref123", redirectUrl: "/r/123" }),
       verify: async () => "PAID",
     }
     const repo: PaymentRepository = {
       save: async () => {},
+      saveIfAbsent: async () => true,
       findByProviderReference: async () => null,
+      findByOrderId: async () => [],
       markStatus: async () => {},
     }
     const start = createStartPayment({
-      providers: { INSTAPAY: provider, CRYPTO: provider, COINS: provider },
+      providers: { PAYMOB: provider, CRYPTO: provider, COINS: provider },
       payments: repo,
       newId: () => "p1",
     })
-    const res = await start({ order: o, provider: "INSTAPAY", returnUrl: "https://x/y" })
+    const res = await start({ order: o, provider: "PAYMOB", returnUrl: "https://x/y" })
     expect(res.redirectUrl).toBe("/r/123")
   })
 
@@ -112,6 +120,7 @@ describe("start-payment", () => {
     const o = order({
       id: "o1",
       token: "t1",
+      profileId: "p1",
       client: c,
       product: pr,
       player: pl,
@@ -120,7 +129,7 @@ describe("start-payment", () => {
     })
     const saved: any[] = []
     const provider: PaymentProvider = {
-      name: "INSTAPAY",
+      name: "PAYMOB",
       charge: async () => ({ providerReference: "ref123", redirectUrl: "/r/123" }),
       verify: async () => "PAID",
     }
@@ -128,15 +137,17 @@ describe("start-payment", () => {
       save: async (p) => {
         saved.push(p)
       },
+      saveIfAbsent: async () => true,
       findByProviderReference: async () => null,
+      findByOrderId: async () => [],
       markStatus: async () => {},
     }
     const start = createStartPayment({
-      providers: { INSTAPAY: provider, CRYPTO: provider, COINS: provider },
+      providers: { PAYMOB: provider, CRYPTO: provider, COINS: provider },
       payments: repo,
       newId: () => "p1",
     })
-    await expect(start({ order: o, provider: "INSTAPAY", returnUrl: "https://x/y" })).rejects.toBeInstanceOf(PaymentError)
+    await expect(start({ order: o, provider: "PAYMOB", returnUrl: "https://x/y" })).rejects.toBeInstanceOf(PaymentError)
     expect(saved.length).toBe(0)
   })
 
@@ -147,6 +158,7 @@ describe("start-payment", () => {
     let o = order({
       id: "o1",
       token: "t1",
+      profileId: "p1",
       client: c,
       product: pr,
       player: pl,
@@ -157,7 +169,7 @@ describe("start-payment", () => {
     o = apply(o, "PAYMENT_CONFIRMED")
     const saved: any[] = []
     const provider: PaymentProvider = {
-      name: "INSTAPAY",
+      name: "PAYMOB",
       charge: async () => ({ providerReference: "ref123", redirectUrl: "/r/123" }),
       verify: async () => "PAID",
     }
@@ -165,22 +177,104 @@ describe("start-payment", () => {
       save: async (p) => {
         saved.push(p)
       },
+      saveIfAbsent: async () => true,
       findByProviderReference: async () => null,
+      findByOrderId: async () => [],
       markStatus: async () => {},
     }
     const start = createStartPayment({
-      providers: { INSTAPAY: provider, CRYPTO: provider, COINS: provider },
+      providers: { PAYMOB: provider, CRYPTO: provider, COINS: provider },
       payments: repo,
       newId: () => "p1",
     })
-    await expect(start({ order: o, provider: "INSTAPAY", returnUrl: "https://x/y" })).rejects.toBeInstanceOf(PaymentError)
+    await expect(start({ order: o, provider: "PAYMOB", returnUrl: "https://x/y" })).rejects.toBeInstanceOf(PaymentError)
+    expect(saved.length).toBe(0)
+  })
+
+  it("returns an existing PENDING payment without charging or saving again", async () => {
+    const o = makeOrder()
+    const pending = payment({
+      id: "p-existing",
+      orderId: o.id,
+      provider: "PAYMOB",
+      providerReference: "fake_paymob_existing",
+      amount: money(12000, "USD"),
+      status: "PENDING",
+    })
+    const chargeCalls: any[] = []
+    const saved: any[] = []
+    const provider: PaymentProvider = {
+      name: "PAYMOB",
+      charge: async (req) => {
+        chargeCalls.push(req)
+        return { providerReference: "ref123", redirectUrl: "/r/123" }
+      },
+      verify: async () => "PAID",
+    }
+    const repo: PaymentRepository = {
+      save: async (p) => {
+        saved.push(p)
+      },
+      saveIfAbsent: async () => true,
+      findByProviderReference: async () => null,
+      findByOrderId: async () => [pending],
+      markStatus: async () => {},
+    }
+    const start = createStartPayment({
+      providers: { PAYMOB: provider, CRYPTO: provider, COINS: provider },
+      payments: repo,
+      newId: () => "p1",
+    })
+    const res = await start({ order: o, provider: "PAYMOB", returnUrl: "https://x/y" })
+    expect(res.payment).toBe(pending)
+    expect(res.redirectUrl).toBe("/checkout/fake/fake_paymob_existing")
+    expect(chargeCalls.length).toBe(0)
+    expect(saved.length).toBe(0)
+  })
+
+  it("throws PaymentError when an existing payment is PAID", async () => {
+    const o = makeOrder()
+    const paid = payment({
+      id: "p-paid",
+      orderId: o.id,
+      provider: "PAYMOB",
+      providerReference: "fake_paymob_paid",
+      amount: money(12000, "USD"),
+      status: "PAID",
+    })
+    const chargeCalls: any[] = []
+    const saved: any[] = []
+    const provider: PaymentProvider = {
+      name: "PAYMOB",
+      charge: async (req) => {
+        chargeCalls.push(req)
+        return { providerReference: "ref123", redirectUrl: "/r/123" }
+      },
+      verify: async () => "PAID",
+    }
+    const repo: PaymentRepository = {
+      save: async (p) => {
+        saved.push(p)
+      },
+      saveIfAbsent: async () => true,
+      findByProviderReference: async () => null,
+      findByOrderId: async () => [paid],
+      markStatus: async () => {},
+    }
+    const start = createStartPayment({
+      providers: { PAYMOB: provider, CRYPTO: provider, COINS: provider },
+      payments: repo,
+      newId: () => "p1",
+    })
+    await expect(start({ order: o, provider: "PAYMOB", returnUrl: "https://x/y" })).rejects.toThrow("Order already has a paid payment")
+    expect(chargeCalls.length).toBe(0)
     expect(saved.length).toBe(0)
   })
 
   it("a rejecting charge propagates and saves nothing", async () => {
     const o = makeOrder()
     const provider: PaymentProvider = {
-      name: "INSTAPAY",
+      name: "PAYMOB",
       charge: async () => {
         throw new Error("fail")
       },
@@ -191,15 +285,17 @@ describe("start-payment", () => {
       save: async (p) => {
         saved.push(p)
       },
+      saveIfAbsent: async () => true,
       findByProviderReference: async () => null,
+      findByOrderId: async () => [],
       markStatus: async () => {},
     }
     const start = createStartPayment({
-      providers: { INSTAPAY: provider, CRYPTO: provider, COINS: provider },
+      providers: { PAYMOB: provider, CRYPTO: provider, COINS: provider },
       payments: repo,
       newId: () => "p1",
     })
-    await expect(start({ order: o, provider: "INSTAPAY", returnUrl: "https://x/y" })).rejects.toThrow("fail")
+    await expect(start({ order: o, provider: "PAYMOB", returnUrl: "https://x/y" })).rejects.toThrow("fail")
     expect(saved.length).toBe(0)
   })
 })

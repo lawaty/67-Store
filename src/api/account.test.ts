@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest"
 import type { Container } from "@/container"
 import { client } from "@/accounts"
 import { gamingProfile } from "@/accounts"
-import { order, type EarnedLevel } from "@/ordering"
+import { achievementRule, order, type EarnedLevel } from "@/ordering"
 import { product } from '@/catalogue'
 import { player } from "@/ordering"
 import { money } from "@/shared/money"
@@ -17,11 +17,12 @@ import {
   savePreference,
 } from "./account"
 
-const profile = gamingProfile({ id: "g1", accountId: "a1", label: "Main", userId: "1", serverId: "2", game: "mlbb" })
+const profile = gamingProfile({ id: "g1", clientId: "c1", accountId: "a1", userId: "1", serverId: "2", game: "mlbb" })
 
 const placed = order({
   id: "o1",
   token: "t1",
+  profileId: "p1",
   client: client("c1"),
   product: product({ id: "p1", distributorId: "d1", name: "86", cost: money(1000, "USD"), game: "mlbb" }),
   player: player("1", "2"),
@@ -69,6 +70,7 @@ function fakeContainer(overrides: Partial<Container> = {}): Container {
     clients: { findById: async () => client("c1"), save: async () => {} },
     orders: {
       listByClient: async () => [placed],
+      countByClient: async () => 1,
       save: async () => {},
       findById: async () => placed,
       findByToken: async () => placed,
@@ -88,27 +90,40 @@ function fakeContainer(overrides: Partial<Container> = {}): Container {
     },
     gamingProfiles: {
       listByAccount: async () => [profile],
-      add: async () => {},
+      add: async (input: { id: string; clientId: string; accountId: string | null; userId: string; serverId: string; game: string; playerName?: string | null }) => ({
+        id: input.id,
+        clientId: input.clientId,
+        accountId: input.accountId,
+        userId: input.userId,
+        serverId: input.serverId,
+        game: input.game,
+        playerName: input.playerName ?? null,
+        createdAt: null,
+      }),
       remove: async () => {},
     },
     distributor: {
       checkPlayer: async () => ({ valid: true, name: "Player" }),
       placeOrder: async () => { throw new Error("not used") },
       getOrder: async () => { throw new Error("not used") },
-      getBalance: async () => ({ balanceMinor: 0 }),
+      getBalance: async () => ({ balanceMilli: 0 }),
     },
     accounts: {
       setPreference: async () => {},
       findByEmail: async () => null,
-      findById: async () => null,
-      create: async () => ({ id: "", clientId: "", email: "", passwordHash: "" }),
+      findById: async () => ({ id: "a1", clientId: "c1", email: "a@example.com", username: "a", passwordHash: "h" }),
+      create: async () => ({ id: "", clientId: "", email: "", username: "", passwordHash: "" }),
       list: async () => ({ rows: [], total: 0 }),
       listPreferences: async () => ({}),
     },
     settings: fakeSettings(),
     activity: fakeActivity(0),
     levelAchievements: fakeLevelAchievements(),
-    operationsMode: async () => "live" as const,
+    achievements: {
+      listActive: async () => [],
+      listProgress: async () => [],
+      upsertProgress: async () => {},
+    },
     ...overrides,
   } as unknown as Container
 }
@@ -137,19 +152,17 @@ describe("readAccount", () => {
       reason: "grant",
       createdAt: "2026-01-01T00:00:00.000Z",
     })
-    expect(account?.profiles[0].label).toBe("Main")
+    expect(account?.profiles[0].id).toBe("g1")
+    expect(account?.identity).toEqual({ username: "a", email: "a@example.com" })
+    expect(account?.achievements).toEqual([
+      { key: "level:epic", source: "level", title: "Epic", description: "", icon: "shield", color: "sky", count: 1, target: 0, earned: true },
+      { key: "level:mythic", source: "level", title: "Mythic", description: "", icon: "gem", color: "gold", count: 0, target: 1000, earned: false },
+      { key: "level:immortal", source: "level", title: "Immortal", description: "", icon: "flame", color: "ember", count: 0, target: 5000, earned: false },
+    ])
   })
 
-  it("reports fundingAvailable false in live mode", async () => {
-    const container = fakeContainer({ operationsMode: async () => "live" as const })
-    const account = await readAccount(container, { accountId: "a1", clientId: "c1" })
-
-    expect(account?.fundingAvailable).toBe(false)
-  })
-
-  it("reports fundingAvailable true in sandbox mode", async () => {
-    const container = fakeContainer({ operationsMode: async () => "sandbox" as const })
-    const account = await readAccount(container, { accountId: "a1", clientId: "c1" })
+  it("reports fundingAvailable true", async () => {
+    const account = await readAccount(fakeContainer(), { accountId: "a1", clientId: "c1" })
 
     expect(account?.fundingAvailable).toBe(true)
   })
@@ -240,12 +253,88 @@ describe("readAccount", () => {
     expect(listByClient).toHaveBeenCalledWith("c1")
     expect(account?.levels.earnedBadges).toEqual(persisted)
     expect(account?.levels.levels.map((l) => l.key)).not.toContain("retired")
+    expect(account?.achievements.find((a) => a.key === "level:retired")).toMatchObject({
+      source: "level",
+      title: "Retired Old",
+      count: 1,
+      target: 100,
+      earned: true,
+    })
+  })
+
+  it("records managed achievements with counts and earned state", async () => {
+    const earned = achievementRule({
+      id: "TOTAL_ORDERS",
+      title: "Loyal Customer",
+      description: "Place three orders",
+      icon: "gift",
+      color: "gold",
+      type: "TOTAL_ORDERS",
+      target: 3,
+    })
+    const unearned = achievementRule({
+      id: "BIG_SPENDER",
+      title: "Big Spender",
+      description: "Place ten orders",
+      icon: "crown",
+      color: "ember",
+      type: "TOTAL_ORDERS",
+      target: 10,
+    })
+    const upsertProgress = vi.fn(async () => {})
+    const base = fakeContainer()
+    const container = fakeContainer({
+      orders: { ...base.orders, countByClient: async () => 4 },
+      achievements: {
+        listAll: async () => [earned, unearned],
+        listActive: async () => [earned, unearned],
+        create: async () => { throw new Error("not used") },
+        update: async () => { throw new Error("not used") },
+        remove: async () => {},
+        listProgress: async () => [],
+        upsertProgress,
+      },
+    })
+
+    const account = await readAccount(container, { accountId: "a1", clientId: "c1" })
+
+    expect(account?.achievements.filter((a) => a.source === "managed")).toEqual([
+      {
+        key: "TOTAL_ORDERS",
+        source: "managed",
+        title: "Loyal Customer",
+        description: "Place three orders",
+        icon: "gift",
+        color: "gold",
+        count: 4,
+        target: 3,
+        earned: true,
+      },
+      {
+        key: "BIG_SPENDER",
+        source: "managed",
+        title: "Big Spender",
+        description: "Place ten orders",
+        icon: "crown",
+        color: "ember",
+        count: 4,
+        target: 10,
+        earned: false,
+      },
+    ])
+    expect(upsertProgress).toHaveBeenCalledWith({
+      clientId: "c1",
+      achievementId: "TOTAL_ORDERS",
+      count: 4,
+      earnedAt: expect.any(String),
+    })
   })
 
   it("maps order DTO fields: createdAt Date/string/null, player ids, playerName", async () => {
     const withDate = order({
       id: "o-date",
       token: "t-date",
+      profileId: "p1",
       client: client("c1"),
       product: product({ id: "p1", distributorId: "d1", name: "86", cost: money(1000, "USD"), game: "mlbb" }),
       player: player("9", "8"),
@@ -258,6 +347,7 @@ describe("readAccount", () => {
     const withString = order({
       id: "o-str",
       token: "t-str",
+      profileId: "p1",
       client: client("c1"),
       product: product({ id: "p1", distributorId: "d1", name: "86", cost: money(1000, "USD"), game: "mlbb" }),
       player: player("7", "6"),
@@ -269,6 +359,7 @@ describe("readAccount", () => {
     const withNull = order({
       id: "o-null",
       token: "t-null",
+      profileId: "p1",
       client: client("c1"),
       product: product({ id: "p1", distributorId: "d1", name: "86", cost: money(1000, "USD"), game: "mlbb" }),
       player: player("5", "4"),
@@ -279,6 +370,7 @@ describe("readAccount", () => {
     const container = fakeContainer({
       orders: {
         listByClient: async () => [withDate, withString, withNull],
+        countByClient: async () => 3,
         save: async () => {},
         findById: async () => withDate,
         findByToken: async () => withDate,
@@ -288,6 +380,7 @@ describe("readAccount", () => {
         listByStatus: async () => [],
         search: async () => ({ rows: [], total: 0 }),
         sumCoinsChargedSince: async () => 0,
+        summarizeByClient: async () => ({ totalOrders: 0, totalPaidCoins: 0, monthlyPaidCoins: 0 }), listFailedUnrefundedCoinOrders: async () => [],
       },
     })
     const account = await readAccount(container, { accountId: "a1", clientId: "c1" })
@@ -318,15 +411,28 @@ describe("readAccount", () => {
   it("flows profile createdAt through to the DTO", async () => {
     const dated = gamingProfile({
       id: "g2",
+      clientId: "c1",
       accountId: "a1",
-      label: "Dated",
       userId: "3",
       serverId: "4",
       game: "mlbb",
       createdAt: "2026-04-01T00:00:00.000Z",
     })
     const container = fakeContainer({
-      gamingProfiles: { listByAccount: async () => [profile, dated], add: async () => {}, remove: async () => {} },
+      gamingProfiles: {
+        listByAccount: async () => [profile, dated],
+        add: async (input) => ({
+          id: input.id,
+          clientId: input.clientId,
+          accountId: input.accountId,
+          userId: input.userId,
+          serverId: input.serverId,
+          game: input.game,
+          playerName: input.playerName ?? null,
+          createdAt: null,
+        }),
+        remove: async () => {},
+      },
     })
     const account = await readAccount(container, { accountId: "a1", clientId: "c1" })
 
@@ -335,14 +441,14 @@ describe("readAccount", () => {
   })
 
   it("marks exactly the preferred profile true; others false", async () => {
-    const other = gamingProfile({ id: "g2", accountId: "a1", label: "Alt", userId: "3", serverId: "4", game: "mlbb" })
+    const other = gamingProfile({ id: "g2", clientId: "c1", accountId: "a1", userId: "3", serverId: "4", game: "mlbb" })
     const container = fakeContainer({
-      gamingProfiles: { listByAccount: async () => [profile, other], add: async () => {}, remove: async () => {} },
+      gamingProfiles: { listByAccount: async () => [profile, other], add: async () => profile, remove: async () => {} },
       accounts: {
         setPreference: async () => {},
         findByEmail: async () => null,
-        findById: async () => null,
-        create: async () => ({ id: "", clientId: "", email: "", passwordHash: "" }),
+        findById: async () => ({ id: "a1", clientId: "c1", email: "a@example.com", username: "a", passwordHash: "h" }),
+        create: async () => ({ id: "", clientId: "", email: "", username: "", passwordHash: "" }),
         list: async () => ({ rows: [], total: 0 }),
         listPreferences: async () => ({ player: "1/2" }),
       },
@@ -353,18 +459,31 @@ describe("readAccount", () => {
   })
 
   it("marks all profiles not preferred for empty or malformed preferences", async () => {
-    const other = gamingProfile({ id: "g2", accountId: "a1", label: "Alt", userId: "3", serverId: "4", game: "mlbb" })
+    const other = gamingProfile({ id: "g2", clientId: "c1", accountId: "a1", userId: "3", serverId: "4", game: "mlbb" })
     const profiles = [profile, other]
     const cases: Record<string, string>[] = [{}, { player: "abc" }, { player: "1/" }, { player: "1/2/3" }]
 
     for (const prefs of cases) {
       const container = fakeContainer({
-        gamingProfiles: { listByAccount: async () => profiles, add: async () => {}, remove: async () => {} },
+        gamingProfiles: {
+          listByAccount: async () => profiles,
+          add: async (input) => ({
+            id: input.id,
+            clientId: input.clientId,
+            accountId: input.accountId,
+            userId: input.userId,
+            serverId: input.serverId,
+            game: input.game,
+            playerName: input.playerName ?? null,
+            createdAt: null,
+          }),
+          remove: async () => {},
+        },
         accounts: {
           setPreference: async () => {},
           findByEmail: async () => null,
-          findById: async () => null,
-          create: async () => ({ id: "", clientId: "", email: "", passwordHash: "" }),
+          findById: async () => ({ id: "a1", clientId: "c1", email: "a@example.com", username: "a", passwordHash: "h" }),
+          create: async () => ({ id: "", clientId: "", email: "", username: "", passwordHash: "" }),
           list: async () => ({ rows: [], total: 0 }),
           listPreferences: async () => prefs,
         },
@@ -378,12 +497,21 @@ describe("readAccount", () => {
 describe("profiles", () => {
   it("lists profiles as DTOs", async () => {
     expect(await listProfiles(fakeContainer(), { accountId: "a1", clientId: "c1" })).toEqual([
-      { id: "g1", label: "Main", userId: "1", serverId: "2", game: "mlbb", playerName: null, createdAt: null, preferred: false },
+      { id: "g1",  userId: "1", serverId: "2", game: "mlbb", playerName: null, createdAt: null, preferred: false },
     ])
   })
 
   it("adds a profile with the injected id", async () => {
-    const add = vi.fn(async () => {})
+    const add = vi.fn(async (input) => ({
+      id: input.id,
+      clientId: input.clientId,
+      accountId: input.accountId,
+      userId: input.userId,
+      serverId: input.serverId,
+      game: input.game,
+      playerName: input.playerName ?? null,
+      createdAt: null,
+    }))
     const container = fakeContainer({
       gamingProfiles: { listByAccount: async () => [], add, remove: async () => {} },
     })
@@ -391,14 +519,14 @@ describe("profiles", () => {
     await addProfile(
       container,
       { accountId: "a1", clientId: "c1" },
-      { label: "Alt", game: "mlbb", userId: "3", serverId: "4" },
+      { game: "mlbb", userId: "3", serverId: "4" },
       () => "new",
     )
 
     expect(add).toHaveBeenCalledWith({
       id: "new",
+      clientId: "c1",
       accountId: "a1",
-      label: "Alt",
       game: "mlbb",
       userId: "3",
       serverId: "4",
@@ -407,14 +535,27 @@ describe("profiles", () => {
   })
 
     it("marks exactly the preferred profile in listProfiles", async () => {
-    const other = gamingProfile({ id: "g2", accountId: "a1", label: "Alt", userId: "3", serverId: "4", game: "mlbb" })
+    const other = gamingProfile({ id: "g2", clientId: "c1", accountId: "a1", userId: "3", serverId: "4", game: "mlbb" })
     const container = fakeContainer({
-      gamingProfiles: { listByAccount: async () => [profile, other], add: async () => {}, remove: async () => {} },
+      gamingProfiles: {
+        listByAccount: async () => [profile, other],
+        add: async (input) => ({
+          id: input.id,
+          clientId: input.clientId,
+          accountId: input.accountId,
+          userId: input.userId,
+          serverId: input.serverId,
+          game: input.game,
+          playerName: input.playerName ?? null,
+          createdAt: null,
+        }),
+        remove: async () => {},
+      },
       accounts: {
         setPreference: async () => {},
         findByEmail: async () => null,
         findById: async () => null,
-        create: async () => ({ id: "", clientId: "", email: "", passwordHash: "" }),
+        create: async () => ({ id: "", clientId: "", email: "", username: "", passwordHash: "" }),
         list: async () => ({ rows: [], total: 0 }),
         listPreferences: async () => ({ player: "3/4" }),
       },
@@ -427,13 +568,22 @@ describe("profiles", () => {
   })
 
   it("rejects an invalid player before saving", async () => {
-      const add = vi.fn(async () => {})
+      const add = vi.fn(async (input) => ({
+        id: input.id,
+        clientId: input.clientId,
+        accountId: input.accountId,
+        userId: input.userId,
+        serverId: input.serverId,
+        game: input.game,
+        playerName: input.playerName ?? null,
+        createdAt: null,
+      }))
       const container = fakeContainer({
         distributor: {
           checkPlayer: async () => ({ valid: false, name: null }),
           placeOrder: async () => ({ distributorOrderId: "d", status: "PENDING" }),
           getOrder: async () => ({ distributorOrderId: "d", status: "PENDING" }),
-          getBalance: async () => ({ balanceMinor: 0 }),
+          getBalance: async () => ({ balanceMilli: 0 }),
         },
         gamingProfiles: { listByAccount: async () => [], add, remove: async () => {} },
       })
@@ -442,7 +592,7 @@ describe("profiles", () => {
       addProfile(
         container,
         { accountId: "a1", clientId: "c1" },
-        { label: "Alt", game: "mlbb", userId: "3", serverId: "4" },
+        { game: "mlbb", userId: "3", serverId: "4" },
         () => "new",
       ),
     ).rejects.toBeInstanceOf(InvalidPlayerError)
@@ -450,7 +600,16 @@ describe("profiles", () => {
   })
 
     it("rejects when the distributor cannot verify the player", async () => {
-      const add = vi.fn(async () => {})
+      const add = vi.fn(async (input) => ({
+        id: input.id,
+        clientId: input.clientId,
+        accountId: input.accountId,
+        userId: input.userId,
+        serverId: input.serverId,
+        game: input.game,
+        playerName: input.playerName ?? null,
+        createdAt: null,
+      }))
       const container = fakeContainer({
         distributor: {
           checkPlayer: async () => {
@@ -458,7 +617,7 @@ describe("profiles", () => {
           },
           placeOrder: async () => ({ distributorOrderId: "d", status: "PENDING" }),
           getOrder: async () => ({ distributorOrderId: "d", status: "PENDING" }),
-          getBalance: async () => ({ balanceMinor: 0 }),
+          getBalance: async () => ({ balanceMilli: 0 }),
         },
         gamingProfiles: { listByAccount: async () => [], add, remove: async () => {} },
       })
@@ -467,7 +626,7 @@ describe("profiles", () => {
       addProfile(
         container,
         { accountId: "a1", clientId: "c1" },
-        { label: "Alt", game: "mlbb", userId: "3", serverId: "4" },
+        { game: "mlbb", userId: "3", serverId: "4" },
         () => "new",
       ),
     ).rejects.toBeInstanceOf(PlayerVerificationError)
@@ -477,7 +636,20 @@ describe("profiles", () => {
   it("removes a profile scoped to the account", async () => {
     const remove = vi.fn(async () => {})
     const container = fakeContainer({
-      gamingProfiles: { listByAccount: async () => [], add: async () => {}, remove },
+      gamingProfiles: {
+        listByAccount: async () => [],
+        add: async (input) => ({
+          id: input.id,
+          clientId: input.clientId,
+          accountId: input.accountId,
+          userId: input.userId,
+          serverId: input.serverId,
+          game: input.game,
+          playerName: input.playerName ?? null,
+          createdAt: null,
+        }),
+        remove,
+      },
     })
 
     await removeProfile(container, { accountId: "a1", clientId: "c1" }, "g1")
@@ -494,7 +666,7 @@ describe("savePreference", () => {
         setPreference,
         findByEmail: async () => null,
         findById: async () => null,
-        create: async () => ({ id: "", clientId: "", email: "", passwordHash: "" }),
+        create: async () => ({ id: "", clientId: "", email: "", username: "", passwordHash: "" }),
         list: async () => ({ rows: [], total: 0 }),
         listPreferences: async () => ({}),
       },

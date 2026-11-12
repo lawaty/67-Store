@@ -15,8 +15,8 @@ const funding: WalletFunding = {
   coins: 2,
   wacEgpMinor: 5000,
   egpValueMinor: 10000,
-  provider: "INSTAPAY",
-  providerReference: "fake_instapay_fund_f1",
+  provider: "PAYMOB",
+  providerReference: "fake_paymob_fund_f1",
   status: "PENDING",
   depositId: null,
   createdAt: CREATED,
@@ -33,8 +33,8 @@ function row(overrides: Record<string, unknown> = {}) {
     coins: 2,
     wacEgpMinor: 5000,
     egpValueMinor: 10000,
-    provider: "INSTAPAY",
-    providerReference: "fake_instapay_fund_f1",
+    provider: "PAYMOB",
+    providerReference: "fake_paymob_fund_f1",
     status: "PENDING",
     depositId: null,
     createdAt: new Date(CREATED),
@@ -77,8 +77,8 @@ describe("createPrismaWalletFundingRepository", () => {
         coins: 2,
         wacEgpMinor: 5000,
         egpValueMinor: 10000,
-        provider: "INSTAPAY",
-        providerReference: "fake_instapay_fund_f1",
+        provider: "PAYMOB",
+        providerReference: "fake_paymob_fund_f1",
         status: "PENDING",
         depositId: null,
         createdAt: new Date(CREATED),
@@ -99,9 +99,9 @@ describe("createPrismaWalletFundingRepository", () => {
   it("findByReference maps through the domain factory", async () => {
     const db = fakeDb({ findUnique: vi.fn().mockResolvedValue(row()) })
     const repo = createPrismaWalletFundingRepository(db)
-    const result = await repo.findByReference("fake_instapay_fund_f1")
+    const result = await repo.findByReference("fake_paymob_fund_f1")
     expect(db.walletFunding.findUnique).toHaveBeenCalledWith({
-      where: { providerReference: "fake_instapay_fund_f1" },
+      where: { providerReference: "fake_paymob_fund_f1" },
     })
     expect(result).toEqual(funding)
   })

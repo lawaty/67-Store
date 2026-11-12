@@ -4,6 +4,7 @@
 import { signInAdmin } from "./actions"
 import { Icon } from "@/app/icons"
 import { SubmitButton } from "@/app/submit-button"
+import { brand } from "@/shared/brand"
 
 export const dynamic = "force-dynamic"
 
@@ -14,12 +15,12 @@ export default async function LoginPage({
 }) {
   const { error } = await searchParams
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-canvas px-4 py-10" dir="rtl">
+    <main className="login-shell flex min-h-dvh items-center justify-center bg-canvas px-4 py-10" dir="rtl">
       <div className="w-full max-w-sm overflow-hidden rounded-3xl border border-line bg-surface shadow-e2">
         <div className="ember-seam h-1" />
         <div className="p-6 sm:p-8">
-          <img src="/logo-64.png" srcSet="/logo-64.png 1x, /logo-128.png 2x" alt="" width={70} height={48} decoding="async" className="h-12 w-auto" />
-          <p className="eyebrow mt-5"><Icon name="lock" size={12} />إدارة ٦٧</p>
+          <img src={brand.logo64} srcSet={`${brand.logo64} 1x, ${brand.logo128} 2x`} alt="" width={70} height={48} decoding="async" className="h-12 w-auto" />
+          <p className="eyebrow mt-5"><Icon name="lock" size={12} />{brand.adminLabel}</p>
           <h1 className="display-2 mt-2">دخول لوحة التحكم</h1>
           <p className="mt-2 text-sm leading-relaxed text-muted">المنطقة دي لفريق المتجر بس.</p>
 

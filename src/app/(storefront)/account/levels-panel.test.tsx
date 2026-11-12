@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import { cleanup, render, screen } from "@testing-library/react"
 
 import { LevelsPanel } from "./levels-panel"
-import type { AccountLevelsDto } from "@/api/contracts/account"
+import type { AccountAchievementDto, AccountLevelsDto } from "@/api/contracts/account"
 
 const epic = { key: "epic", title: "Epic", icon: "shield", color: "sky", coins: 0, basisPoints: 2000 } as const
 const mythic = { key: "mythic", title: "Mythic", icon: "gem", color: "gold", coins: 1000, basisPoints: 1500 } as const
@@ -26,13 +26,20 @@ function makeLevels(overrides: Partial<AccountLevelsDto> = {}): AccountLevelsDto
   }
 }
 
+const achievements: readonly AccountAchievementDto[] = [
+  { key: "epic", source: "level", title: "Epic", description: "Epic level", icon: "shield", color: "sky", count: 1, target: 0, earned: true },
+  { key: "mythic", source: "level", title: "Mythic", description: "Mythic level", icon: "gem", color: "gold", count: 0, target: 1000, earned: false },
+  { key: "immortal", source: "level", title: "Immortal", description: "Immortal level", icon: "flame", color: "ember", count: 0, target: 5000, earned: false },
+  { key: "retired", source: "level", title: "Retired Old", description: "Retired", icon: "gift", color: "gold", count: 1, target: 100, earned: true },
+]
+
 afterEach(() => {
   cleanup()
 })
 
 describe("LevelsPanel", () => {
   it("shows current level title, effective margin, and volume", () => {
-    render(<LevelsPanel levels={makeLevels({ volume30d: 750, effectiveMarginBasisPoints: 1500 })} locale="en" />)
+    render(<LevelsPanel levels={makeLevels({ volume30d: 750, effectiveMarginBasisPoints: 1500 })} achievements={achievements} locale="en" />)
 
     expect(screen.getAllByText("Epic").length).toBeGreaterThan(0)
     expect(screen.getByText("15%")).toBeTruthy()
@@ -40,7 +47,7 @@ describe("LevelsPanel", () => {
   })
 
   it("formats fractional margins trimmed", () => {
-    render(<LevelsPanel levels={makeLevels({ effectiveMarginBasisPoints: 1250 })} locale="en" />)
+    render(<LevelsPanel levels={makeLevels({ effectiveMarginBasisPoints: 1250 })} achievements={achievements} locale="en" />)
     expect(screen.getByText("12.5%")).toBeTruthy()
   })
 
@@ -48,6 +55,7 @@ describe("LevelsPanel", () => {
     render(
       <LevelsPanel
         levels={makeLevels({ percent: 40, toNext: 500, next: { ...mythic }, current: { ...epic } })}
+        achievements={achievements}
         locale="en"
       />,
     )
@@ -63,6 +71,7 @@ describe("LevelsPanel", () => {
     render(
       <LevelsPanel
         levels={makeLevels({ next: null, percent: 100, current: { ...immortal } })}
+        achievements={achievements}
         locale="en"
       />,
     )
@@ -74,47 +83,31 @@ describe("LevelsPanel", () => {
     expect(fill.getAttribute("style")).toContain("width: 100%")
   })
 
-  it("marks earned badges with date and locked badges with lock label", () => {
-    render(<LevelsPanel levels={makeLevels()} locale="en" />)
+  it("renders achievements grid with count badges and tooltips (incl orphan)", () => {
+    render(<LevelsPanel levels={makeLevels()} achievements={achievements} locale="en" />)
 
     expect(screen.getByText("Achievements")).toBeTruthy()
-    expect(screen.getAllByText("Earned").length).toBeGreaterThan(0)
-    expect(screen.getByText("2026-01-01")).toBeTruthy()
-    expect(screen.getAllByText("Locked").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("Epic").length).toBeGreaterThan(0)
+    expect(screen.getByText("Retired Old")).toBeTruthy()
+    // level thresholds in tooltips
     expect(screen.getByText("1000 coins")).toBeTruthy()
     expect(screen.getByText("5000 coins")).toBeTruthy()
-  })
-
-  it("renders an orphaned earned badge with its snapshot title and earned treatment", () => {
-    const levels = makeLevels({
-      earnedBadges: [
-        { levelKey: "epic", title: "Epic", icon: "shield", color: "sky", coins: 0, earnedAt: "2026-01-01T00:00:00.000Z" },
-        { levelKey: "retired", title: "Retired Old", icon: "gift", color: "gold", coins: 100, earnedAt: "2026-02-01T00:00:00.000Z" },
-      ],
-    })
-
-    render(<LevelsPanel levels={levels} locale="en" />)
-
-    expect(screen.getByText("Retired Old")).toBeTruthy()
-    expect(screen.getByText("2026-02-01")).toBeTruthy()
-    expect(screen.getByText("100 coins")).toBeTruthy()
-    expect(screen.getAllByText("Earned").length).toBeGreaterThanOrEqual(2)
-    expect(screen.queryByText("Retired Old")?.closest(".card")?.className).toContain("card-lift")
+    // count badges
+    expect(screen.getAllByText("1").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("0").length).toBeGreaterThan(0)
   })
 
   it("clamps percent above 100", () => {
-    render(<LevelsPanel levels={makeLevels({ percent: 150 })} locale="en" />)
+    render(<LevelsPanel levels={makeLevels({ percent: 150 })} achievements={achievements} locale="en" />)
 
     const bar = screen.getByRole("progressbar")
-    expect(bar.getAttribute("aria-valuemin")).toBe("0")
-    expect(bar.getAttribute("aria-valuemax")).toBe("100")
     expect(bar.getAttribute("aria-valuenow")).toBe("100")
     const fill = bar.firstElementChild as HTMLElement
     expect(fill.getAttribute("style")).toContain("width: 100%")
   })
 
   it("clamps percent below 0", () => {
-    render(<LevelsPanel levels={makeLevels({ percent: -20 })} locale="en" />)
+    render(<LevelsPanel levels={makeLevels({ percent: -20 })} achievements={achievements} locale="en" />)
 
     const bar = screen.getByRole("progressbar")
     expect(bar.getAttribute("aria-valuenow")).toBe("0")

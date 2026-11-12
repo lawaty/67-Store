@@ -1,11 +1,11 @@
 /**
  * Treasury consumption value object enforcing non-empty identifiers and safe
- * integer USDT/basis/WAC amounts for order cost records.
+ * integer milli-USDT/basis/WAC amounts for order cost records.
  */
 export type TreasuryConsumption = {
   readonly id: string
   readonly orderId: string
-  readonly usdtMinor: number
+  readonly usdtMilli: number
   readonly basisEgpMinor: number
   readonly wacEgpMinor: number
   readonly createdAt: string
@@ -22,9 +22,9 @@ export function treasuryConsumption(input: TreasuryConsumption): TreasuryConsump
     throw new RangeError()
   }
 
-  const { usdtMinor, basisEgpMinor, wacEgpMinor } = input
+  const { usdtMilli, basisEgpMinor, wacEgpMinor } = input
 
-  if (!Number.isSafeInteger(usdtMinor) || usdtMinor <= 0) {
+  if (!Number.isSafeInteger(usdtMilli) || usdtMilli <= 0) {
     throw new RangeError()
   }
   if (!Number.isSafeInteger(basisEgpMinor) || basisEgpMinor < 0) {
@@ -37,7 +37,7 @@ export function treasuryConsumption(input: TreasuryConsumption): TreasuryConsump
   return Object.freeze({
     id,
     orderId,
-    usdtMinor,
+    usdtMilli,
     basisEgpMinor,
     wacEgpMinor,
     createdAt,

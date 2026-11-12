@@ -25,5 +25,6 @@ export async function POST(request: Request): Promise<Response> {
   const container = getContainer()
   const poll = createPollOrders({ orders: container.orders, syncFulfilment: container.syncFulfilment })
   const result = await poll()
-  return Response.json(result, { status: 200 })
+  const refundRetries = await container.retryFailedRefunds()
+  return Response.json({ ...result, refundRetries }, { status: 200 })
 }

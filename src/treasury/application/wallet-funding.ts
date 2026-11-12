@@ -34,7 +34,7 @@ export function createStartWalletFunding(deps: {
       return quoted
     }
 
-    const provider = input.currency === "USD" ? "CRYPTO" : "INSTAPAY"
+    const provider = input.currency === "USD" ? "CRYPTO" : "PAYMOB"
     const id = deps.newId()
     const providerReference = `fake_${provider.toLowerCase()}_fund_${id}`
     const funding = walletFunding({

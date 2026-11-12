@@ -1,6 +1,23 @@
 import { describe, expect, it } from "vitest"
-import type { StorefrontProductDto } from "@/api/contracts"
+import type { StorefrontDto, StorefrontGatewaysDto, StorefrontProductDto } from "@/api/contracts"
 import { bestValueDiamond, egpPerDiamondMinor, partitionProducts, priceFor } from "./catalogue"
+
+export function buildStorefrontGateways(overrides: Partial<StorefrontGatewaysDto> = {}): StorefrontGatewaysDto {
+  return { card: true, wallet: true, crypto: true, coins: true, ...overrides }
+}
+
+export function buildStorefrontDto(overrides: Partial<Omit<StorefrontDto, "gateways">> & { gateways?: Partial<StorefrontGatewaysDto> } = {}): StorefrontDto {
+  return {
+    signedIn: false,
+    products: [],
+    rate: 48.5,
+    coinValue: 0.01,
+    profiles: [],
+    defaultMethod: "paymob",
+    ...overrides,
+    gateways: buildStorefrontGateways(overrides.gateways),
+  }
+}
 
 function product(overrides: Partial<StorefrontProductDto> & Pick<StorefrontProductDto, "id" | "name">): StorefrontProductDto {
   const buyable = overrides.buyable ?? true
@@ -116,10 +133,10 @@ describe("bestValueDiamond", () => {
 })
 
 describe("priceFor", () => {
-  it("renders instapay price with EGP label and no coinAmount", () => {
+  it("renders paymob price with EGP label and no coinAmount", () => {
     const p = product({ id: "p1", name: "86", egp: { minor: 582000, currency: "EGP" } })
-    expect(priceFor(p, "instapay", "EGP")).toEqual({ price: "5820.00 EGP" })
-    expect(priceFor(p, "instapay", "EGP").coinAmount).toBeUndefined()
+    expect(priceFor(p, "paymob", "EGP")).toEqual({ price: "5820.00 EGP" })
+    expect(priceFor(p, "paymob", "EGP").coinAmount).toBeUndefined()
   })
 
   it("renders crypto price in USDT and no coinAmount", () => {
@@ -136,7 +153,7 @@ describe("priceFor", () => {
   it("does not mutate the product", () => {
     const p = product({ id: "p4", name: "86", egp: { minor: 582000, currency: "EGP" }, price: { minor: 12000, currency: "USD" }, coins: 120 })
     const snapshot = { ...p, price: { ...p.price }, egp: { ...p.egp } }
-    priceFor(p, "instapay", "EGP")
+    priceFor(p, "paymob", "EGP")
     priceFor(p, "crypto", "EGP")
     priceFor(p, "coins", "EGP")
     expect(p).toEqual(snapshot)

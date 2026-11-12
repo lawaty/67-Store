@@ -5,7 +5,6 @@
 
 import { randomUUID } from "node:crypto"
 import { getContainer } from "@/api/container"
-import { readEnv } from "@/env"
 import { sessionFromRequest } from "@/api/auth"
 import { checkout, type CheckoutMethod } from "@/api/checkout"
 import { failure, json } from "@/api/http"
@@ -25,10 +24,10 @@ export async function POST(request: Request): Promise<Response> {
   if (typeof productId !== "string") return failure("bad_request", 400)
 
   const session = sessionFromRequest(request)
-  const env = readEnv(process.env as Record<string, string | undefined>)
+  const container = getContainer()
 
   const result = await checkout(
-    getContainer(),
+    container,
     session === null
       ? { accountId: null, clientId: null }
       : { accountId: session.accountId, clientId: session.clientId },
@@ -36,13 +35,13 @@ export async function POST(request: Request): Promise<Response> {
       productId,
       method: method(body.method),
       profileId: text(body.profileId),
-      label: text(body.label),
       userId: text(body.userId),
       serverId: text(body.serverId),
       promoCode: text(body.promoCode),
       locale: text(body.locale),
+      termsAccepted: body.termsAccepted === true,
     },
-    { newId: randomUUID, allowFakeFulfilment: env.allowFakeFulfilment },
+    { newId: randomUUID, allowFakeFulfilment: container.fakeFulfilmentEnabled() },
   )
 
   return json(result)

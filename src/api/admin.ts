@@ -20,24 +20,30 @@ import {
   readVipMarkupCurve,
   resolveClientMarkup,
   resolveMarkupBasisPoints,
+  levelAt,
 } from "@/ordering"
 import { readVipLevels, saveVipLevels as persistVipLevels } from "@/ordering"
 import { validateLevels, type Level } from "@/ordering"
-import { coinIndexCapped, coinIndexLastMoveBps, coinsForUsdtMinor, readCoinIndex, readCoinValueMinor, reservedUsdtMinor, writeCoinIndexCap } from "@/treasury"
+import { coinIndexCapped, coinIndexLastMoveBps, coinsForUsdtMilli, readCoinIndex, readCoinValueMinor, reservedUsdtMilli, writeCoinIndexCap } from "@/treasury"
 import { readDepositRate } from "@/treasury"
 import { assertPositiveCoins } from "@/wallet"
+import { achievementRule, type AchievementRule } from "@/ordering"
 
-import { availableUsdtMinor, coverageBasisPoints, freeUsdtMinor } from "@/treasury"
+import { availableUsdtMilli, coverageBasisPoints, freeUsdtMilli } from "@/treasury"
 import { fxResultEgpMinor } from "@/treasury"
 import { fillDailySeries } from "@/treasury"
 import { appendP2pHistory, p2pHourKey, readP2pHistory, readP2pLatestRate, readP2pSettings, readP2pWindowRange, writeP2pSettings, MAX_P2P_OUTLIER_SIGMA, MAX_P2P_SYNC_INTERVAL_SECONDS, MAX_P2P_WINDOW_HOURS, MIN_P2P_OUTLIER_SIGMA, MIN_P2P_SYNC_INTERVAL_SECONDS, MIN_P2P_WINDOW_HOURS } from "@/treasury"
 import { normalizeCode, type PromoKind } from "@/promos"
 import { money, type CurrencyCode } from "@/shared/money"
+import { USDT_MILLI_PER_USDT, usdMinorFloorFromUsdtMilli } from "@/shared/usdt"
 import { P2P_RATE_MANUAL_KEY, readP2pManualOverride } from "@/treasury"
 
 export { readEgpRate } from "@/treasury"
 import { isStorefrontMethod, readStorefrontDefaultMethod, writeStorefrontDefaultMethod } from "@/catalogue"
+import { writeGatewaySettings, type GatewaySettings } from "@/payments"
 import type {
+  AdminAchievementDto,
+  AdminAchievementInput,
   AdminDashboardDto,
   AdminLevelDto,
   AdminOrderPageDto,
@@ -47,6 +53,7 @@ import type {
   AdminSettingsDto,
   AdminStatsDto,
   AdminUserDetailDto,
+  AdminUserOrderDto,
   AdminUserPageDto,
   TreasuryDashboardDto,
   WalletOutcomeDto,
@@ -69,12 +76,23 @@ export function presentAdminOrder(order: Order): AdminOrderRowDto {
   return {
     id: order.id,
     token: order.token,
-    clientId: order.client?.id ?? null,
+    user: {
+      id: order.clientAccount?.id ?? null,
+      username: order.clientAccount?.username ?? null,
+      email: order.clientAccount?.email ?? null,
+    },
+    profile: {
+      game: order.product.game,
+      userId: order.player.userId,
+      serverId: order.player.serverId,
+    },
     productName: order.product.name,
     player: { userId: order.player.userId, serverId: order.player.serverId },
     price: order.price,
     discountMinor: order.discountMinor ?? null,
     costMinor: order.costMinor ?? null,
+    costUsdtMilli: order.costUsdtMilli ?? null,
+    coinsCharged: order.coinsCharged ?? null,
     status: order.status,
     createdAt:
       order.createdAt === null || order.createdAt === undefined
@@ -87,13 +105,15 @@ export function presentAdminOrder(order: Order): AdminOrderRowDto {
 
 export function presentAdminProduct(
   product: Product,
-  availableUsdtMinorValue: number | null,
+  availableUsdtMilliValue: number | null,
 ): AdminProductDto {
   const active = product.active !== false
+  const availableUsdtMinor =
+    availableUsdtMilliValue === null ? null : usdMinorFloorFromUsdtMilli(availableUsdtMilliValue)
   const availability = productAvailability({
     active,
     costMinor: product.cost.minor,
-    availableUsdtMinor: availableUsdtMinorValue,
+    availableUsdtMinor,
   })
   return {
     id: product.id,
@@ -108,13 +128,13 @@ export function presentAdminProduct(
 }
 
 export async function readAdminStats(c: Container): Promise<AdminStatsDto> {
-  let balanceUsdtMinor: number | null = null
+  let balanceUsdtMilli: number | null = null
   let balanceError = false
   try {
     const balance = await c.distributor.getBalance()
-    balanceUsdtMinor = balance.balanceMinor
+    balanceUsdtMilli = balance.balanceMilli
   } catch {
-    balanceUsdtMinor = null
+    balanceUsdtMilli = null
     balanceError = true
   }
 
@@ -132,33 +152,33 @@ export async function readAdminStats(c: Container): Promise<AdminStatsDto> {
   }
 
   let wacEgpMinor: number | null = null
-  let recordedUsdtMinor: number | null = null
-  let reservedUsdtMinorValue: number | null = null
-  let availableUsdtMinorValue: number | null = null
+  let recordedUsdtMilli: number | null = null
+  let reservedUsdtMilliValue: number | null = null
+  let availableUsdtMilliValue: number | null = null
   try {
     const snapshot = await c.treasury.snapshot()
     wacEgpMinor = snapshot.wacEgpMinor
-    const recorded = snapshot.usdtMinor
-    const reserved = reservedUsdtMinor(
+    const recorded = snapshot.usdtMilli
+    const reserved = reservedUsdtMilli(
       await c.coinSupply.totalCoins(),
       await readCoinValueMinor(c.settings),
     )
-    recordedUsdtMinor = recorded
-    reservedUsdtMinorValue = reserved
-    availableUsdtMinorValue = availableUsdtMinor(recorded, reserved)
+    recordedUsdtMilli = recorded
+    reservedUsdtMilliValue = reserved
+    availableUsdtMilliValue = availableUsdtMilli(recorded, reserved)
   } catch {
-    recordedUsdtMinor = null
-    reservedUsdtMinorValue = null
-    availableUsdtMinorValue = null
+    recordedUsdtMilli = null
+    reservedUsdtMilliValue = null
+    availableUsdtMilliValue = null
   }
 
   return {
-    balanceUsdtMinor,
+    balanceUsdtMilli,
     p2pEgpPerUsdtMinor,
     wacEgpMinor,
-    availableUsdtMinor: availableUsdtMinorValue,
-    recordedUsdtMinor,
-    reservedUsdtMinor: reservedUsdtMinorValue,
+    availableUsdtMilli: availableUsdtMilliValue,
+    recordedUsdtMilli,
+    reservedUsdtMilli: reservedUsdtMilliValue,
     balanceError,
     updatedAt: new Date().toISOString(),
   }
@@ -171,22 +191,22 @@ export async function readDashboard(c: Container): Promise<AdminDashboardDto> {
   let balance: AdminDashboardDto["balance"] = null
   let balanceAt: string | null = null
   let balanceError = false
-  let liveUsdtMinor = 0
+  let liveUsdtMilli = 0
   try {
     const distributor = await c.distributor.getBalance()
     balance = {
-      usdMinor: distributor.balanceMinor,
-      egpMinor: toEgp(money(distributor.balanceMinor, "USD"), rate).minor,
+      usdMilli: distributor.balanceMilli,
+      egpMinor: toEgp(money(usdMinorFloorFromUsdtMilli(distributor.balanceMilli), "USD"), rate).minor,
     }
     balanceAt = new Date().toISOString()
-    liveUsdtMinor = distributor.balanceMinor
+    liveUsdtMilli = distributor.balanceMilli
   } catch {
     balanceError = true
     balanceAt = null
-    liveUsdtMinor = 0
+    liveUsdtMilli = 0
   }
 
-  const usdMinor = balance === null ? null : balance.usdMinor
+  const usdMinor = balance === null ? null : usdMinorFloorFromUsdtMilli(balance.usdMilli)
   const cheapest =
     activeProducts.length > 0
       ? activeProducts.reduce(
@@ -207,11 +227,11 @@ export async function readDashboard(c: Container): Promise<AdminDashboardDto> {
     readP2pSettings(c.settings),
   ])
 
-  const reservedMinor = reservedUsdtMinor(coinsOutstanding, coinIndex.coinValueMinor)
-  const coverage = coverageBasisPoints(liveUsdtMinor, reservedMinor)
-  const available = availableUsdtMinor(snapshot.usdtMinor, reservedMinor)
+  const reservedMilli = reservedUsdtMilli(coinsOutstanding, coinIndex.coinValueMinor)
+  const coverage = coverageBasisPoints(liveUsdtMilli, reservedMilli)
+  const available = availableUsdtMilli(snapshot.usdtMilli, reservedMilli)
   const availableCoins =
-    available > 0 ? coinsForUsdtMinor(available, coinIndex.coinValueMinor) : 0
+    available > 0 ? coinsForUsdtMilli(available, coinIndex.coinValueMinor) : 0
   const now = Date.now()
   const since7 = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString()
   const since30 = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString()
@@ -438,10 +458,10 @@ export async function readDashboard(c: Container): Promise<AdminDashboardDto> {
   const availableUsdtEgpMinor =
     balanceError || p2p === null || available <= 0
       ? null
-      : Math.floor((available * p2p.egpPerUsdtMinor) / 100)
+      : Math.floor((available * p2p.egpPerUsdtMinor) / USDT_MILLI_PER_USDT)
 
-  const recordedUsdtMinor = snapshot.usdtMinor
-  const freeUsdtMinorValue = freeUsdtMinor(balanceError ? null : liveUsdtMinor, recordedUsdtMinor)
+  const recordedUsdtMilli = snapshot.usdtMilli
+  const freeUsdtMilliValue = freeUsdtMilli(balanceError ? null : liveUsdtMilli, recordedUsdtMilli)
 
   return {
     balance,
@@ -449,17 +469,16 @@ export async function readDashboard(c: Container): Promise<AdminDashboardDto> {
     balanceError,
     unfulfillableCount,
     showWarning,
-    operations: { mode: await c.operationsMode(), liveReady: c.liveReady },
     treasury: {
-      expectedUsdtMinor: snapshot.usdtMinor,
-      recordedUsdtMinor,
-      freeUsdtMinor: freeUsdtMinorValue,
+      expectedUsdtMilli: snapshot.usdtMilli,
+      recordedUsdtMilli,
+      freeUsdtMilli: freeUsdtMilliValue,
       wacEgpMinor: snapshot.wacEgpMinor,
       basisEgpMinor: snapshot.basisEgpMinor,
       breakEvenEgpMinor: snapshot.wacEgpMinor,
       coinsOutstanding,
-      reservedUsdtMinor: reservedMinor,
-      availableUsdtMinor: available,
+      reservedUsdtMilli: reservedMilli,
+      availableUsdtMilli: available,
       coverageBasisPoints: coverage,
       availableCoins,
       averageCoinFundingCostEgpMinor,
@@ -509,7 +528,7 @@ export async function searchOrders(c: Container, query: OrderQuery): Promise<Adm
 }
 
 export async function listProducts(c: Container): Promise<{ readonly products: readonly AdminProductDto[] }> {
-  const [products, availableUsdtMinorValue] = await Promise.all([
+  const [products, availableUsdtMilliValue] = await Promise.all([
     c.products.listAll("mlbb"),
     (async (): Promise<number | null> => {
       try {
@@ -518,13 +537,13 @@ export async function listProducts(c: Container): Promise<{ readonly products: r
           c.coinSupply.totalCoins(),
           readCoinValueMinor(c.settings),
         ])
-        return availableUsdtMinor(snapshot.usdtMinor, reservedUsdtMinor(coins, coinValueMinor))
+        return availableUsdtMilli(snapshot.usdtMilli, reservedUsdtMilli(coins, coinValueMinor))
       } catch {
         return null
       }
     })(),
   ])
-  return { products: products.map((p) => presentAdminProduct(p, availableUsdtMinorValue)) }
+  return { products: products.map((p) => presentAdminProduct(p, availableUsdtMilliValue)) }
 }
 
 
@@ -794,12 +813,43 @@ export async function saveCoinIndexCap(c: Container, capBps: number): Promise<Ad
   return { ok: true }
 }
 
+export type AdminGatewaySettingsDto = GatewaySettings
+
+function isGatewaySettings(input: unknown): input is GatewaySettings {
+  if (input === null || typeof input !== "object") return false
+  const record = input as Record<string, unknown>
+  return (
+    typeof record.card === "boolean" &&
+    typeof record.wallet === "boolean" &&
+    typeof record.crypto === "boolean" &&
+    typeof record.coins === "boolean" &&
+    typeof record.fulfilmentEnabled === "boolean"
+  )
+}
+
+export async function readAdminGateways(c: Container): Promise<AdminGatewaySettingsDto> {
+  return await c.gatewaySettings()
+}
+
+export async function saveAdminGateways(c: Container, input: GatewaySettings): Promise<AdminResult> {
+  if (!isGatewaySettings(input)) {
+    return { ok: false, error: "invalid" }
+  }
+  try {
+    await writeGatewaySettings(c.settings, input)
+  } catch {
+    return { ok: false, error: "invalid" }
+  }
+  return { ok: true }
+}
+
 export async function listUsers(c: Container, skip: number, take: number): Promise<AdminUserPageDto> {
   const { rows, total } = await c.accounts.list({ skip, take })
   return {
     rows: rows.map((row) => ({
       id: row.id,
       clientId: row.clientId,
+      username: row.username,
       email: row.email,
       coinBalance: row.coinBalance,
       createdAt: row.createdAt,
@@ -814,12 +864,16 @@ export async function readUser(c: Container, id: string): Promise<AdminUserDetai
   if (account === null) return null
 
   const now = new Date()
-  const [wallet, entries, coinsConsumed30d, curve, override] = await Promise.all([
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+  const [wallet, entries, coinsConsumed30d, curve, override, orders, stats, levels] = await Promise.all([
     c.wallets.getOrCreate(account.clientId),
     c.wallets.listEntries(account.clientId, 20),
     readQualifyingVolume(c.activity, account.clientId, now),
     readVipMarkupCurve(c.settings, "mlbb"),
     readMarkupOverride(c.settings, account.clientId),
+    c.orders.listByClient(account.clientId, 50),
+    c.orders.summarizeByClient(account.clientId, monthStart),
+    readVipLevels(c.settings, "mlbb"),
   ])
 
   const markupBasisPoints = await resolveClientMarkup(c.settings, "mlbb", {
@@ -827,8 +881,10 @@ export async function readUser(c: Container, id: string): Promise<AdminUserDetai
     coinsConsumed: coinsConsumed30d,
   })
 
+  const currentLevel = levelAt(levels, coinsConsumed30d)
+
   return {
-    account: { id: account.id, email: account.email, clientId: account.clientId },
+    account: { id: account.id, email: account.email, username: account.username, clientId: account.clientId },
     wallet: { coinBalance: wallet.coinBalance },
     entries: entries.map((entry) => ({
       id: entry.id,
@@ -840,6 +896,32 @@ export async function readUser(c: Container, id: string): Promise<AdminUserDetai
     markupBasisPoints,
     nextBreakpoint: curve === null ? null : nextBreakpoint(curve, coinsConsumed30d),
     override,
+    level: {
+      key: currentLevel.key,
+      title: currentLevel.title,
+      icon: currentLevel.icon,
+      color: currentLevel.color,
+      coins: currentLevel.coins,
+      basisPoints: currentLevel.basisPoints,
+    },
+    stats,
+    orders: orders.map(
+      (o): AdminUserOrderDto => ({
+        token: o.token,
+        status: o.status,
+        productName: o.product.name,
+        game: o.product.game,
+        userId: o.player.userId,
+        serverId: o.player.serverId,
+        price: o.price,
+        createdAt:
+          o.createdAt === null || o.createdAt === undefined
+            ? null
+            : o.createdAt instanceof Date
+              ? o.createdAt.toISOString()
+              : String(o.createdAt),
+      }),
+    ),
   }
 }
 
@@ -926,6 +1008,50 @@ export async function syncCatalogue(c: Container): Promise<void> {
   await c.syncCatalogue("mlbb")
 }
 
+export function presentAchievement(rule: AchievementRule): AdminAchievementDto {
+  return {
+    id: rule.id,
+    title: rule.title,
+    description: rule.description,
+    icon: rule.icon,
+    color: rule.color,
+    type: rule.type,
+    target: rule.target,
+    active: rule.active,
+    sortOrder: rule.sortOrder,
+  }
+}
+
+export async function listAchievements(c: Container): Promise<AdminAchievementDto[]> {
+  const rules = await c.achievements.listAll()
+  return rules.map(presentAchievement)
+}
+
+export async function createAchievement(
+  c: Container,
+  input: AdminAchievementInput,
+  newId: () => string,
+): Promise<AdminAchievementDto> {
+  const rule = achievementRule({ id: newId(), ...input })
+  const created = await c.achievements.create(rule)
+  return presentAchievement(created)
+}
+
+export async function updateAchievement(
+  c: Container,
+  id: string,
+  input: AdminAchievementInput,
+): Promise<AdminAchievementDto> {
+  const rule = achievementRule({ id, ...input })
+  const { id: _id, ...data } = rule
+  const updated = await c.achievements.update(id, data)
+  return presentAchievement(updated)
+}
+
+export async function removeAchievement(c: Container, id: string): Promise<void> {
+  await c.achievements.remove(id)
+}
+
 export async function recordDeposit(
   c: Container,
   input: { clientId: string; currency: CurrencyCode; amountMinor: number },
@@ -956,14 +1082,14 @@ export async function recordDeposit(
 
 export type RecordFundingInput = {
   readonly egpPaidMinor: number
-  readonly usdtMinor: number
+  readonly usdtMilli: number
 }
 
 export async function recordFunding(
   c: Container,
   input: RecordFundingInput,
 ): Promise<
-  | { ok: true; funding: { id: string; egpPaidMinor: number; usdtMinor: number; createdAt: string } }
+  | { ok: true; funding: { id: string; egpPaidMinor: number; usdtMilli: number; createdAt: string } }
   | { ok: false; error: string }
 > {
   let balance: Awaited<ReturnType<Container["distributor"]["getBalance"]>>
@@ -974,20 +1100,20 @@ export async function recordFunding(
   } catch {
     return { ok: false, error: "exceeds_free" }
   }
-  if (input.usdtMinor > freeUsdtMinor(balance.balanceMinor, snapshot.usdtMinor)) {
+  if (input.usdtMilli > freeUsdtMilli(balance.balanceMilli, snapshot.usdtMilli)) {
     return { ok: false, error: "exceeds_free" }
   }
   try {
     const f = await c.treasury.recordFunding({
       egpPaidMinor: input.egpPaidMinor,
-      usdtMinor: input.usdtMinor,
+      usdtMilli: input.usdtMilli,
     })
     return {
       ok: true,
       funding: {
         id: f.id,
         egpPaidMinor: f.egpPaidMinor,
-        usdtMinor: f.usdtMinor,
+        usdtMilli: f.usdtMilli,
         createdAt: f.createdAt,
       },
     }
@@ -1011,8 +1137,8 @@ export async function rollbackFunding(
     return { ok: false, error: "not_found" }
   }
   const [snapshot, coins, coinIndex] = await Promise.all([c.treasury.snapshot(), c.coinSupply.totalCoins(), readCoinIndex(c.settings)])
-  const reserved = reservedUsdtMinor(coins, coinIndex.coinValueMinor)
-  const recordedAfter = snapshot.usdtMinor - lot.usdtMinor
+  const reserved = reservedUsdtMilli(coins, coinIndex.coinValueMinor)
+  const recordedAfter = snapshot.usdtMilli - lot.usdtMilli
   const basisAfter = snapshot.basisEgpMinor - lot.egpPaidMinor
   if (recordedAfter < 0 || basisAfter < 0 || recordedAfter < reserved) {
     return { ok: false, error: "locked" }
@@ -1032,13 +1158,13 @@ export async function readTreasuryDashboard(c: Container): Promise<TreasuryDashb
   let balance: TreasuryDashboardDto["balance"] = null
   let balanceAt: string | null = null
   let balanceError = false
-  let liveUsdtMinor: number | null = null
+  let liveUsdtMilli: number | null = null
   try {
     const distributor = await c.distributor.getBalance()
-    liveUsdtMinor = distributor.balanceMinor
+    liveUsdtMilli = distributor.balanceMilli
     balance = {
-      usdMinor: distributor.balanceMinor,
-      egpMinor: toEgp(money(distributor.balanceMinor, "USD"), rate).minor,
+      usdMilli: distributor.balanceMilli,
+      egpMinor: toEgp(money(usdMinorFloorFromUsdtMilli(distributor.balanceMilli), "USD"), rate).minor,
     }
     balanceAt = new Date().toISOString()
   } catch {
@@ -1076,7 +1202,7 @@ export async function readTreasuryDashboard(c: Container): Promise<TreasuryDashb
       ? null
       : {
           status: reconciliationRecord.status,
-          gapUsdtMinor: reconciliationRecord.gapUsdtMinor,
+          gapUsdtMilli: reconciliationRecord.gapUsdtMilli,
           createdAt: reconciliationRecord.createdAt,
         }
 
@@ -1086,17 +1212,17 @@ export async function readTreasuryDashboard(c: Container): Promise<TreasuryDashb
     c.consumptions.listRecent(50),
   ])
 
-  const freeUsdtMinorValue = freeUsdtMinor(liveUsdtMinor, snapshot.usdtMinor)
+  const freeUsdtMilliValue = freeUsdtMilli(liveUsdtMilli, snapshot.usdtMilli)
   const coinsOutstanding = await c.coinSupply.totalCoins()
-  const availableUsdtMinorValue = availableUsdtMinor(
-    snapshot.usdtMinor,
-    reservedUsdtMinor(coinsOutstanding, coinIndex.coinValueMinor),
+  const availableUsdtMilliValue = availableUsdtMilli(
+    snapshot.usdtMilli,
+    reservedUsdtMilli(coinsOutstanding, coinIndex.coinValueMinor),
   )
 
   const fundings = fundingsRaw.map((f) => ({
     id: f.id,
     egpPaidMinor: f.egpPaidMinor,
-    usdtMinor: f.usdtMinor,
+    usdtMilli: f.usdtMilli,
     createdAt: f.createdAt,
   }))
 
@@ -1115,7 +1241,7 @@ export async function readTreasuryDashboard(c: Container): Promise<TreasuryDashb
   const consumptions = consumptionsRaw.map((row) => ({
     id: row.id,
     orderId: row.orderId,
-    usdtMinor: row.usdtMinor,
+    usdtMilli: row.usdtMilli,
     basisEgpMinor: row.basisEgpMinor,
     wacEgpMinor: row.wacEgpMinor,
     createdAt: row.createdAt,
@@ -1127,11 +1253,11 @@ export async function readTreasuryDashboard(c: Container): Promise<TreasuryDashb
     balanceError,
     p2pEgpPerUsdtMinor,
     p2pMaxEgpPerUsdtMinor,
-    recordedUsdtMinor: snapshot.usdtMinor,
+    recordedUsdtMilli: snapshot.usdtMilli,
     recordedBasisEgpMinor: snapshot.basisEgpMinor,
     wacEgpMinor: snapshot.wacEgpMinor,
-    freeUsdtMinor: freeUsdtMinorValue,
-    availableUsdtMinor: availableUsdtMinorValue,
+    freeUsdtMilli: freeUsdtMilliValue,
+    availableUsdtMilli: availableUsdtMilliValue,
     depositRates,
     reconciliation,
     fundings,

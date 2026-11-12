@@ -15,8 +15,8 @@ class InMemoryAccountRepository implements AccountRepository {
   async list(input: { skip: number; take: number }) {
     return { rows: [], total: 0 }
   }
-  async create(input: { id: string; clientId: string; email: string; passwordHash: string }) {
-    const account: ClientAccount = { id: input.id, clientId: input.clientId, email: input.email, passwordHash: input.passwordHash }
+  async create(input: { id: string; clientId: string; email: string; username: string; passwordHash: string }) {
+    const account: ClientAccount = { id: input.id, clientId: input.clientId, email: input.email, username: input.username, passwordHash: input.passwordHash }
     this.accounts.push(account)
     return account
   }
@@ -29,7 +29,7 @@ class InMemoryAccountRepository implements AccountRepository {
 describe("sign-in", () => {
   test("returns the ids for the right password", async () => {
     const accounts = new InMemoryAccountRepository()
-    accounts.accounts.push({ id: "acc1", clientId: "cli1", email: "a@b.com", passwordHash: await hashPassword("password123") })
+    accounts.accounts.push({ id: "acc1", clientId: "cli1", email: "a@b.com", username: "user1", passwordHash: await hashPassword("password123") })
     const signIn = createSignIn({ accounts })
     const result = await signIn({ email: "a@b.com", password: "password123" })
     expect(result).toEqual({ accountId: "acc1", clientId: "cli1" })
@@ -37,7 +37,7 @@ describe("sign-in", () => {
 
   test("returns null for a wrong password", async () => {
     const accounts = new InMemoryAccountRepository()
-    accounts.accounts.push({ id: "acc1", clientId: "cli1", email: "a@b.com", passwordHash: await hashPassword("password123") })
+    accounts.accounts.push({ id: "acc1", clientId: "cli1", email: "a@b.com", username: "user1", passwordHash: await hashPassword("password123") })
     const signIn = createSignIn({ accounts })
     const result = await signIn({ email: "a@b.com", password: "wrongpassword" })
     expect(result).toBeNull()
@@ -52,7 +52,7 @@ describe("sign-in", () => {
 
   test("normalizes the email before lookup", async () => {
     const accounts = new InMemoryAccountRepository()
-    accounts.accounts.push({ id: "acc1", clientId: "cli1", email: "a@b.com", passwordHash: await hashPassword("password123") })
+    accounts.accounts.push({ id: "acc1", clientId: "cli1", email: "a@b.com", username: "user1", passwordHash: await hashPassword("password123") })
     const signIn = createSignIn({ accounts })
     const result = await signIn({ email: "  A@B.COM  ", password: "password123" })
     expect(result).toEqual({ accountId: "acc1", clientId: "cli1" })

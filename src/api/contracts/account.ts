@@ -8,7 +8,7 @@ import type { OrderStatusDto } from "./order"
 
 export type ProfileDto = {
   readonly id: string
-  readonly label: string
+  
   readonly userId: string
   readonly serverId: string
   readonly game: string
@@ -65,11 +65,30 @@ export type AccountLevelsDto = {
   readonly earnedBadges: readonly AccountEarnedBadgeDto[]
 }
 
+export type AccountIdentityDto = {
+  readonly username: string
+  readonly email: string
+}
+
+export type AccountAchievementDto = {
+  readonly key: string
+  readonly source: "level" | "managed"
+  readonly title: string
+  readonly description: string
+  readonly icon: string
+  readonly color: string
+  readonly count: number
+  readonly target: number
+  readonly earned: boolean
+}
+
 export type AccountDto = {
   readonly orders: readonly AccountOrderDto[]
   readonly wallet: { readonly coinBalance: number }
   readonly entries: readonly WalletEntryDto[]
   readonly profiles: readonly ProfileDto[]
   readonly levels: AccountLevelsDto
+  readonly identity: AccountIdentityDto
+  readonly achievements: readonly AccountAchievementDto[]
   readonly fundingAvailable: boolean
 }

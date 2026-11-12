@@ -1,7 +1,9 @@
 /**
  * Coin value object utilities: validates positive coin amounts.
  */
-export const COIN_NAME = "67 Coins"
+import { brand } from "@/shared/brand"
+
+export const COIN_NAME = brand.coin
 
 export function assertPositiveCoins(amount: number): void {
   if (!Number.isSafeInteger(amount) || amount <= 0) {

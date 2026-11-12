@@ -56,8 +56,6 @@ export default async function CoinsPage({
                 <thead>
                   <tr>
                     <th>التاريخ</th>
-                    <th>المرجع</th>
-                    <th>العميل</th>
                     <th>المدفوع</th>
                     <th>السعر</th>
                     <th>العملات</th>
@@ -69,8 +67,6 @@ export default async function CoinsPage({
                   {deposits.map((d) => (
                     <tr key={d.id}>
                       <td><span className="num text-sm text-muted">{d.createdAt}</span></td>
-                      <td><span className="num text-sm" dir="ltr">{d.id}</span></td>
-                      <td><span className="num text-sm">{d.clientId}</span></td>
                       <td>
                         <span className="num" dir="ltr">{formatMinor(d.amountMinor, d.currency)}</span>{" "}
                         <span className="hud-chip">{currencyLabel(d.currency)}</span>
@@ -91,8 +87,6 @@ export default async function CoinsPage({
                     <span className="hud-chip">{currencyLabel(d.currency)}</span>
                     <span className="num text-xs text-muted">{d.createdAt}</span>
                   </div>
-                  <p className="num mt-2 text-sm text-muted" dir="ltr">{d.id}</p>
-                  <p className="num mt-1 text-sm text-muted">{d.clientId}</p>
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     <div><p className="card-kicker">المدفوع</p><p className="num mt-1 text-sm font-bold text-ink">{formatMinor(d.amountMinor, d.currency)} {currencyLabel(d.currency)}</p></div>
                     <div><p className="card-kicker">العملات</p><p className="num mt-1 text-sm font-bold text-ink">{d.coins}</p></div>

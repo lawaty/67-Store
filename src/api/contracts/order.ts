@@ -28,5 +28,11 @@ export type OrderDto = {
 
 export type PaymentPageDto = {
   readonly amount: MoneyDto
-  readonly provider: "INSTAPAY" | "CRYPTO" | "COINS"
+  readonly provider: "PAYMOB" | "CRYPTO" | "COINS"
 }
+
+export type ResumePaymentMethod = "egp" | "usdt" | "coins"
+export type ResumePaymentError = "not_found" | "not_awaiting" | "unavailable" | "login" | "coins"
+export type ResumePaymentResultDto =
+  | { readonly ok: true; readonly redirectUrl: string }
+  | { readonly ok: false; readonly error: ResumePaymentError }

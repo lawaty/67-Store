@@ -11,6 +11,7 @@ import { Toast } from "@/app/toast"
 import { Coin } from "@/app/coin"
 import { ProfileFields } from "../../profile-fields"
 import { MethodTabs } from "../../method-tabs"
+import { TermsConsent } from "../../terms-consent"
 import { isUrlMethod, methodToForm, slugify, topupPath, type UrlMethod } from "@/app/urls"
 import { getLocale } from "@/i18n/server"
 import { t } from "@/i18n/dictionary"
@@ -18,7 +19,7 @@ import { SubmitButton } from "@/app/submit-button"
 
 export const dynamic = "force-dynamic"
 
-const isDirectPayMethod = (method: UrlMethod) => method === "instapay" || method === "crypto"
+const isDirectPayMethod = (method: UrlMethod) => method === "paymob" || method === "crypto"
 
 export default async function Page({
   params,
@@ -44,9 +45,13 @@ export default async function Page({
 
   const signedIn = data.signedIn
   const profiles = data.profiles
-  const methodLabel = method === "instapay" ? t(locale, "topup.methodInstapay") : method === "crypto" ? t(locale, "topup.methodCrypto") : t(locale, "topup.methodCoins")
+  const gateways = data.gateways
+  const paymobEnabled = gateways.card || gateways.wallet
+  const coinsEnabled = gateways.coins
+  const cryptoEnabled = gateways.crypto
+  const methodLabel = method === "paymob" ? t(locale, "topup.methodInstapay") : method === "crypto" ? t(locale, "topup.methodCrypto") : t(locale, "topup.methodCoins")
   const total =
-    method === "instapay"
+    method === "paymob"
       ? `${(product.egp.minor / 100).toFixed(2)} ${t(locale, "common.currency")}`
       : method === "crypto"
         ? `${(product.price.minor / 100).toFixed(2)} USDT`
@@ -60,6 +65,7 @@ export default async function Page({
     )
 
   const needsLogin = method === "coins" && !signedIn
+  const gatewayDisabled = method === "paymob" ? !paymobEnabled : method === "crypto" ? !cryptoEnabled : !coinsEnabled
   const directPayUnavailable = isDirectPayMethod(method) && product.directPayAvailable === false
   const productUnavailable = !product.buyable
   const unavailableText = product.unavailableReason === "insufficient_funds" && product.fundingGapMinor > 0
@@ -70,10 +76,12 @@ export default async function Page({
 
   return (
     <main className="page pb-32 lg:pb-24">
+      {query.error === "terms" ? <Toast message={t(locale, "legal.consent.error")} tone="bad" /> : null}
       {query.error === "coins" ? <Toast message={t(locale, "topup.errorCoinsInsufficient")} tone="bad" /> : null}
       {query.error === "player" ? <Toast message={t(locale, "topup.errorPlayerCheck")} tone="bad" /> : null}
       {query.error === "coverage" ? <Toast message={t(locale, "topup.errorCoverage")} tone="bad" /> : null}
       {query.error === "unavailable" ? <Toast message={t(locale, "topup.errorUnavailable")} tone="bad" /> : null}
+      {query.error === "payment" ? <Toast message={t(locale, "topup.errorPayment")} tone="bad" /> : null}
       {query.error?.startsWith("promo-") ? <Toast message={{ unknown: t(locale, "topup.errorPromoUnknown"), expired: t(locale, "topup.errorPromoExpired"), exhausted: t(locale, "topup.errorPromoExhausted"), inactive: t(locale, "topup.errorPromoInactive") }[query.error.slice("promo-".length)] ?? t(locale, "topup.errorPromoUnknown")} tone="bad" /> : null}
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
@@ -94,10 +102,14 @@ export default async function Page({
 
           <section className="mt-7">
             <h2 className="text-sm font-bold text-ink">{t(locale, "topup.chooseMethod")}</h2>
-            <MethodTabs locale={locale} productName={product.name} method={method} />
+            <MethodTabs locale={locale} productName={product.name} method={method} gateways={gateways} />
           </section>
 
-          {productUnavailable ? (
+          {gatewayDisabled ? (
+            <div className="mt-6 rounded-2xl border border-line bg-surface p-6 shadow-e1">
+              <p className="notice">{t(locale, "topup.errorUnavailable")}</p>
+            </div>
+          ) : productUnavailable ? (
             <div className="mt-6 rounded-2xl border border-line bg-surface p-6 shadow-e1">
               <p className="notice">{t(locale, "topup.errorUnavailable")}</p>
               {unavailableText ? <p className="mt-2 text-sm text-muted">{unavailableText}</p> : null}
@@ -128,7 +140,6 @@ export default async function Page({
                   <ProfileFields
                     locale={locale}
                     profiles={profiles}
-                    canSave={signedIn}
                     defaultUserId={query.userId ?? ""}
                     defaultServerId={query.serverId ?? ""}
                   />
@@ -141,6 +152,8 @@ export default async function Page({
                   <input name="promoCode" type="text" dir="ltr" autoComplete="off" />
                 </label>
               </div>
+
+              <TermsConsent locale={locale} />
 
               {method === "coins" && signedIn ? <p className="text-xs text-muted">{t(locale, "topup.coinsDeducted")}</p> : null}
             </form>
@@ -169,7 +182,7 @@ export default async function Page({
               {method === "coins" && signedIn ? <p className="mt-2 text-xs text-muted">{t(locale, "topup.coinsDeducted")}</p> : null}
             </div>
 
-            {productUnavailable || directPayUnavailable ? null : needsLogin ? (
+            {gatewayDisabled || productUnavailable || directPayUnavailable ? null : needsLogin ? (
               <div className="mt-4 grid gap-3">
                 <p className="notice">{t(locale, "topup.needLoginCoins")}</p>
                 <Link className="btn btn-primary btn-block" href={"/account/login?next=" + encodeURIComponent(topupPath(product.name, method))}>
@@ -187,15 +200,15 @@ export default async function Page({
             </p>
           </div>
 
-          <div className="mt-3 grid grid-cols-3 gap-2">
-            <span className="hud-chip justify-center"><Icon name="card" size={11} />{t(locale, "home.methodInstapay")}</span>
-            <span className="hud-chip justify-center"><Icon name="crypto" size={11} />{t(locale, "home.methodCrypto")}</span>
-            <span className="hud-chip justify-center"><Icon name="coins" size={11} />{t(locale, "home.methodCoins")}</span>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {paymobEnabled ? <span className="hud-chip justify-center"><Icon name="card" size={11} />{t(locale, "home.methodInstapay")}</span> : null}
+            {cryptoEnabled ? <span className="hud-chip justify-center"><Icon name="crypto" size={11} />{t(locale, "home.methodCrypto")}</span> : null}
+            {coinsEnabled ? <span className="hud-chip justify-center"><Icon name="coins" size={11} />{t(locale, "home.methodCoins")}</span> : null}
           </div>
         </aside>
       </div>
 
-      {!productUnavailable && !directPayUnavailable && !needsLogin ? (
+      {!gatewayDisabled && !productUnavailable && !directPayUnavailable && !needsLogin ? (
         <div className="mobile-cta lg:hidden">
           <div className="flex items-center justify-between gap-3">
             <div>

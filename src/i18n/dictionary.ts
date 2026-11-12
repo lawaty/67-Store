@@ -7,6 +7,7 @@ import { ar as topupAr, en as topupEn } from "./messages/topup"
 import { ar as orderAr, en as orderEn } from "./messages/order"
 import { ar as accountAr, en as accountEn } from "./messages/account"
 import { ar as managementAr, en as managementEn } from "./messages/management"
+import { ar as legalAr, en as legalEn } from "./messages/legal"
 import type { Locale } from "./locale"
 
 const ar = {
@@ -16,6 +17,7 @@ const ar = {
   ...orderAr,
   ...accountAr,
   ...managementAr,
+  ...legalAr,
 } as const
 
 const en: Record<keyof typeof ar, string> = {
@@ -25,6 +27,7 @@ const en: Record<keyof typeof ar, string> = {
   ...orderEn,
   ...accountEn,
   ...managementEn,
+  ...legalEn,
 }
 
 export const dictionaries = { ar, en } as const

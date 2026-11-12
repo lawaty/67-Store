@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from "react"
 import { usePathname } from "next/navigation"
 import type { AdminStatsDto } from "@/api/contracts/admin"
 import { Skeleton } from "@/app/skeleton"
+import { formatUsdtMilli } from "@/frontend/format"
 import PartitionBar from "./(shell)/viz/partition-bar"
 
 type StatsStatus = "loading" | "ready" | "error"
@@ -93,15 +94,16 @@ export function SidebarStats({ layout = "sidebar" }: { readonly layout?: "sideba
 
   return (
     <div className={"mb-4 border-b border-line px-2 pb-4" + (dimmed ? " opacity-60" : "")}>
-      {!showSkeleton && data !== null && data.recordedUsdtMinor !== null && data.reservedUsdtMinor !== null ? (
+      {!showSkeleton && data !== null && data.recordedUsdtMilli !== null && data.reservedUsdtMilli !== null ? (
         <div className="mb-2 px-1">
           <PartitionBar
             compact
-            total={{ label: "المسجل", minor: data.recordedUsdtMinor }}
+            total={{ label: "المسجل", minor: data.recordedUsdtMilli }}
             parts={[
-              { label: "محجوز", minor: data.reservedUsdtMinor, tone: "sky" },
-              { label: "متاح", minor: data.availableUsdtMinor ?? 0, tone: "jade" },
+              { label: "محجوز", minor: data.reservedUsdtMilli, tone: "sky" },
+              { label: "متاح", minor: data.availableUsdtMilli ?? 0, tone: "jade" },
             ]}
+            format={formatUsdtMilli}
           />
         </div>
       ) : null}
@@ -139,20 +141,20 @@ export function SidebarStats({ layout = "sidebar" }: { readonly layout?: "sideba
 
 function cells(data: AdminStatsDto | null): { label: string; value: string; danger: boolean; title?: string }[] {
   return [
-      { label: "إجمالي الخزينة", value: formatUsdt(data?.balanceUsdtMinor ?? null), danger: false },
+    { label: "إجمالي الخزينة", value: formatUsdt(data?.balanceUsdtMilli ?? null), danger: false },
     { label: "سعر السوق", value: formatEgp(data?.p2pEgpPerUsdtMinor ?? null), danger: false, title: "سعر شراء USDT من P2P الآن" },
     { label: "WAC", value: formatEgp(data?.wacEgpMinor ?? null), danger: false, title: "متوسط تكلفة USDT المسجل" },
     {
       label: "المتاح",
-      value: formatUsdt(data?.availableUsdtMinor ?? null),
-      danger: data?.availableUsdtMinor != null && data.availableUsdtMinor < 0,
+      value: formatUsdt(data?.availableUsdtMilli ?? null),
+      danger: data?.availableUsdtMilli != null && data.availableUsdtMilli < 0,
     },
   ]
 }
 
-function formatUsdt(minor: number | null): string {
-  if (minor === null) return "—"
-  return (minor / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+function formatUsdt(milli: number | null): string {
+  if (milli === null) return "—"
+  return formatUsdtMilli(milli)
 }
 
 function formatEgp(minor: number | null): string {

@@ -4,12 +4,13 @@
  */
 import type { Container } from "@/container"
 import { productAvailability, readStorefrontDefaultMethod, type Product, type StorefrontMethod } from '@/catalogue'
+import { usdMinorFloorFromUsdtMilli } from "@/shared/usdt"
 import type { Markup } from "@/ordering"
 import { priceProduct } from "./pricing"
 import { readQualifyingVolume, resolveClientMarkup } from "@/ordering"
-import { readAvailableUsdtMinor, readCoinIndex, readCoinValueMinor, readEgpRate } from "@/treasury"
+import { readAvailableUsdtMilli, readCoinIndex, readCoinValueMinor, readEgpRate } from "@/treasury"
 
-import type { ProfileDto, StorefrontDto, StorefrontProductDto } from "./contracts"
+import type { ProfileDto, StorefrontDto, StorefrontGatewaysDto, StorefrontProductDto } from "./contracts"
 
 export type Viewer = {
   readonly accountId: string | null
@@ -22,29 +23,34 @@ export async function readStorefront(c: Container, viewer: Viewer, audience: Aud
   const clientId = audience === "client" ? viewer.clientId : null
   const coinsConsumed = await readQualifyingVolume(c.activity, clientId, now)
 
-  const [products, basisPoints, rate, coinIndex, defaultMethod] = await Promise.all([
+  const [products, basisPoints, rate, coinIndex, defaultMethod, gatewaySettings] = await Promise.all([
     c.products.listActive("mlbb"),
     resolveClientMarkup(c.settings, "mlbb", { clientId, coinsConsumed }),
     readEgpRate(c.settings),
     readCoinIndex(c.settings),
     readStorefrontDefaultMethod(c.settings),
+    c.gatewaySettings(),
   ])
+
+  const gateways: StorefrontGatewaysDto = {
+    card: gatewaySettings.card,
+    wallet: gatewaySettings.wallet,
+    crypto: gatewaySettings.crypto,
+    coins: gatewaySettings.coins,
+  }
 
   const profiles = viewer.accountId === null ? [] : await c.gamingProfiles.listByAccount(viewer.accountId)
 
-  const mode = await c.operationsMode()
-
-  let availableUsdtMinor: number | null = null
-  if (mode === "live") {
-    try {
-      availableUsdtMinor = await readAvailableUsdtMinor({
-        recordedUsdt: async () => (await c.treasury.snapshot()).usdtMinor,
-        coinsOutstanding: () => c.coinSupply.totalCoins(),
-        coinValueMinor: () => readCoinValueMinor(c.settings),
-      })
-    } catch {
-      availableUsdtMinor = null
-    }
+  let availableUsdMinor: number | null = null
+  try {
+    const availableUsdtMilli = await readAvailableUsdtMilli({
+      recordedUsdt: async () => (await c.treasury.snapshot()).usdtMilli,
+      coinsOutstanding: () => c.coinSupply.totalCoins(),
+      coinValueMinor: () => readCoinValueMinor(c.settings),
+    })
+    availableUsdMinor = usdMinorFloorFromUsdtMilli(availableUsdtMilli)
+  } catch {
+    availableUsdMinor = null
   }
 
   const coinValue = coinIndex.coinValueMinor / 100
@@ -52,14 +58,11 @@ export async function readStorefront(c: Container, viewer: Viewer, audience: Aud
   return {
     signedIn: viewer.accountId !== null,
     products: products.map((product) => {
-      const availability =
-        mode === "sandbox"
-          ? { buyable: true, fundingGapMinor: 0, unavailableReason: null as null }
-          : productAvailability({
-              active: true,
-              costMinor: product.cost.minor,
-              availableUsdtMinor,
-            })
+      const availability = productAvailability({
+        active: true,
+        costMinor: product.cost.minor,
+        availableUsdtMinor: availableUsdMinor,
+      })
       return presentProduct(product, { basisPoints }, rate, coinIndex.coinValueMinor, {
         buyable: availability.buyable,
         fundingGapMinor: availability.fundingGapMinor,
@@ -71,6 +74,7 @@ export async function readStorefront(c: Container, viewer: Viewer, audience: Aud
     coinValue,
     profiles: profiles.map(presentProfile),
     defaultMethod,
+    gateways,
   }
 }
 
@@ -108,7 +112,7 @@ export function presentProduct(
 
 export function presentProfile(profile: {
   readonly id: string
-  readonly label: string
+  
   readonly userId: string
   readonly serverId: string
   readonly game: string
@@ -117,7 +121,7 @@ export function presentProfile(profile: {
 }): ProfileDto {
   return {
     id: profile.id,
-    label: profile.label,
+    
     userId: profile.userId,
     serverId: profile.serverId,
     game: profile.game,

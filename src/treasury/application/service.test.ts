@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
+import fc from "fast-check"
 import { createTreasuryService } from "./service"
 import { FundingRepository } from "../ports/funding-repository"
 import { ConsumptionRepository } from "../ports/consumption-repository"
@@ -14,7 +15,7 @@ function createFundingRepo(): FundingRepository {
       items.push(lot)
     },
     totals: async () => ({
-      usdtMinor: items.reduce((sum, f) => sum + f.usdtMinor, 0),
+      usdtMilli: items.reduce((sum, f) => sum + f.usdtMilli, 0),
       basisEgpMinor: items.reduce((sum, f) => sum + f.egpPaidMinor, 0),
     }),
     listRecent: async (limit: number) => {
@@ -43,7 +44,7 @@ function createConsumptionRepo(): ConsumptionRepository & { setSumUsdtSince(v: n
       return items.find((c) => c.orderId === orderId) ?? null
     },
     totals: async () => ({
-      usdtMinor: items.reduce((sum, c) => sum + c.usdtMinor, 0),
+      usdtMilli: items.reduce((sum, c) => sum + c.usdtMilli, 0),
       basisEgpMinor: items.reduce((sum, c) => sum + c.basisEgpMinor, 0),
     }),
     sumUsdtSince: async () => sumUsdtSinceValue,
@@ -82,7 +83,7 @@ describe("treasury service", () => {
       now: () => "2026-01-01T00:00:00Z",
     })
     const snap = await service.snapshot()
-    expect(snap).toEqual({ usdtMinor: 0, basisEgpMinor: 0, wacEgpMinor: 0 })
+    expect(snap).toEqual({ usdtMilli: 0, basisEgpMinor: 0, wacEgpMinor: 0 })
   })
 
   it("record a funding then snapshot WAC", async () => {
@@ -96,12 +97,12 @@ describe("treasury service", () => {
     })
     await service.recordFunding({
       egpPaidMinor: 10000,
-      usdtMinor: 100,
+      usdtMilli: 1000,
     })
     const snap = await service.snapshot()
-    expect(snap.usdtMinor).toBe(100)
+    expect(snap.usdtMilli).toBe(1000)
     expect(snap.basisEgpMinor).toBe(10000)
-    expect(snap.wacEgpMinor).toBe(10000) // 10000*100/100 = 10000
+    expect(snap.wacEgpMinor).toBe(10000) // 10000*1000/1000 = 10000
   })
 
   it("two fundings blend the WAC (the spec example)", async () => {
@@ -115,14 +116,14 @@ describe("treasury service", () => {
     })
     await service.recordFunding({
       egpPaidMinor: 2500, // 50 USDT for 2500 EGP
-      usdtMinor: 50,
+      usdtMilli: 500,
     })
     await service.recordFunding({
       egpPaidMinor: 3000, // 50 USDT for 3000 EGP
-      usdtMinor: 50,
+      usdtMilli: 500,
     })
     const snap = await service.snapshot()
-    expect(snap.usdtMinor).toBe(100)
+    expect(snap.usdtMilli).toBe(1000)
     expect(snap.basisEgpMinor).toBe(5500)
     // wac = round(5500*100/100)=5500
     expect(snap.wacEgpMinor).toBe(5500)
@@ -141,23 +142,19 @@ describe("treasury service", () => {
     })
     await service.recordFunding({
       egpPaidMinor: 5000,
-      usdtMinor: 100,
+      usdtMilli: 1000,
     })
     const first = await service.consumeForOrder({
       orderId: "o1",
-      costUsdtMinor: 10,
-      wacEgpMinor: 50,
-      cogsEgpMinor: 500,
+      costUsdtMilli: 100,
     })
     expect(first.orderId).toBe("o1")
     const second = await service.consumeForOrder({
       orderId: "o1",
-      costUsdtMinor: 10,
-      wacEgpMinor: 50,
-      cogsEgpMinor: 500,
+      costUsdtMilli: 100,
     })
     expect(second).toBe(first) // same object
-    expect(await consumptions.totals()).toEqual({ usdtMinor: 10, basisEgpMinor: 500 })
+    expect(await consumptions.totals()).toEqual({ usdtMilli: 100, basisEgpMinor: 500 })
   })
 
   it("consumeForOrder throws when the cost exceeds the treasury", async () => {
@@ -171,14 +168,12 @@ describe("treasury service", () => {
     })
     await service.recordFunding({
       egpPaidMinor: 100,
-      usdtMinor: 10,
+      usdtMilli: 100,
     })
     await expect(
       service.consumeForOrder({
         orderId: "o1",
-        costUsdtMinor: 11,
-        wacEgpMinor: 10,
-        cogsEgpMinor: 110,
+        costUsdtMilli: 110,
       })
     ).rejects.toThrow(RangeError)
   })
@@ -195,23 +190,113 @@ describe("treasury service", () => {
     })
     await service.recordFunding({
       egpPaidMinor: 5000,
-      usdtMinor: 100,
+      usdtMilli: 1000,
     })
     // OK
-    const ok = await service.reconcile({ supplierUsdtMinor: 100, toleranceUsdtMinor: 0 })
+    const ok = await service.reconcile({ supplierUsdtMilli: 1000, toleranceUsdtMilli: 0 })
     expect(ok.status).toBe("OK")
     // GAP: supplier less than expected
-    const gap = await service.reconcile({ supplierUsdtMinor: 99, toleranceUsdtMinor: 0 })
+    const gap = await service.reconcile({ supplierUsdtMilli: 990, toleranceUsdtMilli: 0 })
     expect(gap.status).toBe("GAP")
     // UNRECORDED_FUNDING
-    const unf = await service.reconcile({ supplierUsdtMinor: 101, toleranceUsdtMinor: 0 })
+    const unf = await service.reconcile({ supplierUsdtMilli: 1010, toleranceUsdtMilli: 0 })
     expect(unf.status).toBe("UNRECORDED_FUNDING")
     expect((await reconciliations.list()).length).toBe(3)
     const latest = await reconciliations.latest()
     expect(latest?.status).toBe("UNRECORDED_FUNDING")
   })
 
-  it("recordFunding requires positive egpPaidMinor and usdtMinor", async () => {
+  it("consumeForOrder keeps WAC funding-derived and debits pro-rata", async () => {
+    const service = createTreasuryService({
+      fundings: createFundingRepo(),
+      consumptions: createConsumptionRepo(),
+      reconciliations: createReconciliationRepo(),
+      newId: (() => { let n = 0; return () => `c-${++n}` })(),
+      now: () => "2026-01-01T00:00:00Z",
+    })
+    await service.recordFunding({ egpPaidMinor: 294976, usdtMilli: 54310 })
+    expect((await service.snapshot()).wacEgpMinor).toBe(5431)
+
+    const expectedBasis = [93365, 93365, 93474]
+    const costs = [17190, 17190, 17210]
+    for (let i = 0; i < costs.length; i += 1) {
+      const c = await service.consumeForOrder({
+        orderId: `o-${i}`,
+        costUsdtMilli: costs[i]!,
+      })
+      expect(c.basisEgpMinor).toBe(expectedBasis[i])
+      expect(c.wacEgpMinor).toBe(5431)
+      expect((await service.snapshot()).wacEgpMinor).toBe(5431)
+    }
+
+    const last = await service.consumeForOrder({
+      orderId: "o-last",
+      costUsdtMilli: 2720,
+    })
+    expect(last.basisEgpMinor).toBe(14773)
+    expect(await service.snapshot()).toEqual({ usdtMilli: 0, basisEgpMinor: 0, wacEgpMinor: 0 })
+  })
+
+  it("WAC changes only when funding changes, never when an order consumes", async () => {
+    const service = createTreasuryService({
+      fundings: createFundingRepo(),
+      consumptions: createConsumptionRepo(),
+      reconciliations: createReconciliationRepo(),
+      newId: (() => { let n = 0; return () => `s-${++n}` })(),
+      now: () => "2026-01-01T00:00:00Z",
+    })
+    await service.recordFunding({ egpPaidMinor: 5000, usdtMilli: 1000 })
+    expect((await service.snapshot()).wacEgpMinor).toBe(5000)
+
+    await service.consumeForOrder({ orderId: "o1", costUsdtMilli: 300 })
+    expect((await service.snapshot()).wacEgpMinor).toBe(5000)
+    expect((await service.snapshot()).basisEgpMinor).toBe(3500)
+
+    await service.recordFunding({ egpPaidMinor: 6000, usdtMilli: 1000 })
+    expect((await service.snapshot()).wacEgpMinor).toBe(5500)
+
+    await service.consumeForOrder({ orderId: "o2", costUsdtMilli: 500 })
+    expect((await service.snapshot()).wacEgpMinor).toBe(5500)
+    expect((await service.snapshot()).basisEgpMinor).toBe(6600)
+  })
+
+  it("WAC is invariant under any consumption sequence (property)", async () => {
+    await fc.assert(
+      fc.asyncProperty(
+        fc.integer({ min: 1, max: 100_000 }),
+        fc.integer({ min: 1, max: 1_000_000_000 }),
+        fc.array(fc.integer({ min: 1, max: 10_000 }), { minLength: 1, maxLength: 8 }),
+        async (fundingUsdt, fundingBasis, costs) => {
+          let n = 0
+          const service = createTreasuryService({
+            fundings: createFundingRepo(),
+            consumptions: createConsumptionRepo(),
+            reconciliations: createReconciliationRepo(),
+            newId: () => `p-${++n}`,
+            now: () => "2026-01-01T00:00:00Z",
+          })
+          const fundingUsdtMilli = fundingUsdt * 10
+          await service.recordFunding({ egpPaidMinor: fundingBasis, usdtMilli: fundingUsdtMilli })
+          const initial = (await service.snapshot()).wacEgpMinor
+          let spent = 0
+          for (const cost of costs) {
+            if (spent + cost > fundingUsdtMilli) break
+            await service.consumeForOrder({ orderId: `o-${spent}-${cost}`, costUsdtMilli: cost })
+            spent += cost
+            const snap = await service.snapshot()
+            if (snap.usdtMilli > 0) {
+              expect(snap.wacEgpMinor).toBe(initial)
+            } else {
+              expect(snap.wacEgpMinor).toBe(0)
+            }
+          }
+        },
+      ),
+      { numRuns: 50 },
+    )
+  })
+
+  it("recordFunding requires positive egpPaidMinor and usdtMilli", async () => {
     let id = 0
     const service = createTreasuryService({
       fundings: createFundingRepo(),
@@ -223,19 +308,45 @@ describe("treasury service", () => {
     await expect(
       service.recordFunding({
         egpPaidMinor: 0,
-        usdtMinor: 100,
+        usdtMilli: 1000,
       })
     ).rejects.toThrow(RangeError)
     await expect(
       service.recordFunding({
         egpPaidMinor: 100,
-        usdtMinor: 0,
+        usdtMilli: 0,
       })
     ).rejects.toThrow(RangeError)
     const ok = await service.recordFunding({
       egpPaidMinor: 105,
-      usdtMinor: 10,
+      usdtMilli: 100,
     })
     expect(ok.egpPaidMinor).toBe(105)
   })
 })
+
+  it("runs consumeForOrder inside the injected transaction using the tx repos", async () => {
+    let id = 0
+    const fundings = createFundingRepo()
+    const consumptions = createConsumptionRepo()
+    const reconciliations = createReconciliationRepo()
+    fundings.append({
+      id: "f-seed",
+      egpPaidMinor: 10000,
+      usdtMilli: 1000,
+      createdAt: "2026-01-01T00:00:00Z",
+    } as any)
+    const runInTransaction = vi.fn(async (fn) => fn({ fundings, consumptions, reconciliations }))
+    const service = createTreasuryService({
+      fundings,
+      consumptions,
+      reconciliations,
+      newId: () => `id-${++id}`,
+      now: () => "2026-01-01T00:00:00Z",
+      runInTransaction,
+    })
+    const consumption = await service.consumeForOrder({ orderId: "o-tx", costUsdtMilli: 100 })
+    expect(runInTransaction).toHaveBeenCalledOnce()
+    expect(consumption.orderId).toBe("o-tx")
+    expect(await consumptions.findByOrder("o-tx")).toEqual(consumption)
+  })

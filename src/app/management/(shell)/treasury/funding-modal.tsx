@@ -6,21 +6,22 @@
 import { useRef, useState } from "react"
 import { Icon } from "@/app/icons"
 import { SubmitButton } from "@/app/submit-button"
+import { USDT_MILLI_PER_USDT } from "@/shared/usdt"
 import { recordFunding } from "./actions"
 
 export function FundingModal({
   defaultEgpPaidMinor,
-  defaultUsdtMinor,
-  maxUsdtMinor,
+  defaultUsdtMilli,
+  maxUsdtMilli,
 }: {
   readonly defaultEgpPaidMinor: number
-  readonly defaultUsdtMinor: number
-  readonly maxUsdtMinor: number
+  readonly defaultUsdtMilli: number
+  readonly maxUsdtMilli: number
 }) {
   const dialog = useRef<HTMLDialogElement>(null)
-  const [usdtValue, setUsdtValue] = useState((defaultUsdtMinor / 100).toFixed(2))
-  const usdtMinor = Math.round(Number(usdtValue) * 100)
-  const exceedsFree = Number.isFinite(usdtMinor) && usdtMinor > maxUsdtMinor
+  const [usdtValue, setUsdtValue] = useState((defaultUsdtMilli / USDT_MILLI_PER_USDT).toFixed(3))
+  const usdtMilli = Math.round(Number(usdtValue) * USDT_MILLI_PER_USDT)
+  const exceedsFree = Number.isFinite(usdtMilli) && usdtMilli > maxUsdtMilli
 
   return (
     <>
@@ -63,9 +64,9 @@ export function FundingModal({
                 id="usdt"
                 name="usdt"
                 type="number"
-                step="0.01"
-                min="0.01"
-                max={(maxUsdtMinor / 100).toFixed(2)}
+                step="0.001"
+                min="0.001"
+                max={(maxUsdtMilli / USDT_MILLI_PER_USDT).toFixed(3)}
                 inputMode="decimal"
                 required
                 value={usdtValue}
@@ -73,9 +74,9 @@ export function FundingModal({
               />
             </div>
           </div>
-          <p className="hint mt-3">الحر المتاح: {(maxUsdtMinor / 100).toFixed(2)} USDT</p>
+          <p className="hint mt-3">الحر المتاح: {(maxUsdtMilli / USDT_MILLI_PER_USDT).toFixed(3)} USDT</p>
           {exceedsFree ? (
-            <p className="alert mt-3">الكمية أكبر من USDT الحر المتاح ({(maxUsdtMinor / 100).toFixed(2)} USDT).</p>
+            <p className="alert mt-3">الكمية أكبر من USDT الحر المتاح ({(maxUsdtMilli / USDT_MILLI_PER_USDT).toFixed(3)} USDT).</p>
           ) : null}
           <SubmitButton className="btn btn-primary btn-block mt-4" disabled={exceedsFree}>تسجيل التمويل</SubmitButton>
         </form>

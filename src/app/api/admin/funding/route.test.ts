@@ -29,7 +29,7 @@ describe("POST /api/admin/funding", () => {
   it("rejects unauthenticated requests", async () => {
     isAdminRequestMock.mockReturnValue(false)
 
-    const response = await postFunding({ egpPaidMinor: 10100, usdtMinor: 200 })
+    const response = await postFunding({ egpPaidMinor: 10100, usdtMilli: 200 })
 
     expect(response.status).toBe(401)
     await expect(response.json()).resolves.toEqual({ error: "unauthorized" })
@@ -37,24 +37,24 @@ describe("POST /api/admin/funding", () => {
   })
 
   it("records valid funding", async () => {
-    const response = await postFunding({ egpPaidMinor: 10100, usdtMinor: 200 })
+    const response = await postFunding({ egpPaidMinor: 10100, usdtMilli: 200 })
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({ ok: true })
-    expect(recordFundingMock).toHaveBeenCalledWith({}, { egpPaidMinor: 10100, usdtMinor: 200 })
+    expect(recordFundingMock).toHaveBeenCalledWith({}, { egpPaidMinor: 10100, usdtMilli: 200 })
   })
 
   it("propagates exceeds_free as a 400 error", async () => {
     recordFundingMock.mockResolvedValue({ ok: false, error: "exceeds_free" })
 
-    const response = await postFunding({ egpPaidMinor: 10100, usdtMinor: 99999 })
+    const response = await postFunding({ egpPaidMinor: 10100, usdtMilli: 99999 })
 
     expect(response.status).toBe(400)
     await expect(response.json()).resolves.toEqual({ error: "exceeds_free" })
   })
 
   it("rejects invalid amounts without calling recordFunding", async () => {
-    const response = await postFunding({ egpPaidMinor: 0, usdtMinor: 200 })
+    const response = await postFunding({ egpPaidMinor: 0, usdtMilli: 200 })
 
     expect(response.status).toBe(400)
     await expect(response.json()).resolves.toEqual({ error: "bad_request" })
