@@ -1,5 +1,7 @@
 node_modules/
 .next/
+.next.prev.*
+.next.failed.*
 out/
 dist/
 build/
