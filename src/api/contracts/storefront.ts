@@ -23,6 +23,8 @@ export type StorefrontProductDto = {
   readonly isDiamond: boolean
   readonly directPayAvailable: boolean
   readonly buyable: boolean
+  readonly coinsBuyable: boolean
+  readonly coinsGap: number
   readonly fundingGapMinor: number
   readonly unavailableReason: "insufficient_funds" | "unknown_balance" | null
 }

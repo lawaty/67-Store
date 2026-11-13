@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { StorefrontDto, StorefrontGatewaysDto, StorefrontProductDto } from "@/api/contracts"
-import { bestValueDiamond, egpPerDiamondMinor, partitionProducts, priceFor } from "./catalogue"
+import { bestValueDiamond, egpPerDiamondMinor, methodAvailable, partitionProducts, priceFor } from "./catalogue"
 
 export function buildStorefrontGateways(overrides: Partial<StorefrontGatewaysDto> = {}): StorefrontGatewaysDto {
   return { card: true, wallet: true, crypto: true, coins: true, ...overrides }
@@ -30,6 +30,8 @@ function product(overrides: Partial<StorefrontProductDto> & Pick<StorefrontProdu
     isDiamond: overrides.isDiamond ?? false,
     directPayAvailable: overrides.directPayAvailable ?? buyable,
     buyable,
+    coinsBuyable: overrides.coinsBuyable ?? buyable,
+    coinsGap: overrides.coinsGap ?? 0,
     fundingGapMinor: overrides.fundingGapMinor ?? 0,
     unavailableReason: overrides.unavailableReason ?? null,
   }
@@ -110,6 +112,21 @@ describe("bestValueDiamond", () => {
     expect(bestValueDiamond([cheapButUnbuyable, buyable])?.id).toBe("d172")
   })
 
+  it("includes diamond products a coins-funded viewer can still buy", () => {
+    const coinsOnly = product({
+      id: "d86",
+      name: "86",
+      isDiamond: true,
+      egp: { minor: 582000, currency: "EGP" },
+      buyable: false,
+      directPayAvailable: false,
+      coinsBuyable: true,
+      unavailableReason: "insufficient_funds",
+    })
+    const direct = product({ id: "d172", name: "172", isDiamond: true, egp: { minor: 1204000, currency: "EGP" } })
+    expect(bestValueDiamond([coinsOnly, direct])?.id).toBe("d86")
+  })
+
   it("returns null when all diamonds are unbuyable", () => {
     const unbuyable = product({ id: "d86", name: "86", isDiamond: true, buyable: false, directPayAvailable: false, unavailableReason: "unknown_balance" })
     expect(bestValueDiamond([unbuyable])).toBeNull()
@@ -129,6 +146,16 @@ describe("bestValueDiamond", () => {
     const bad = product({ id: "bad", name: "Weekly", isDiamond: true, egp: { minor: 1, currency: "EGP" } })
     const good = product({ id: "good", name: "86", isDiamond: true, egp: { minor: 582000, currency: "EGP" } })
     expect(bestValueDiamond([bad, good])?.id).toBe("good")
+  })
+})
+
+describe("methodAvailable", () => {
+  it("gates coins on the balance and direct pay on treasury headroom", () => {
+    const p = product({ id: "p", name: "86", buyable: false, directPayAvailable: false, coinsBuyable: true })
+    expect(methodAvailable(p, "coins", true)).toBe(true)
+    expect(methodAvailable(p, "coins", false)).toBe(true)
+    expect(methodAvailable(p, "paymob", true)).toBe(false)
+    expect(methodAvailable(p, "crypto", true)).toBe(false)
   })
 })
 

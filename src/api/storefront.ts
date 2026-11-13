@@ -55,6 +55,11 @@ export async function readStorefront(c: Container, viewer: Viewer, audience: Aud
 
   const coinValue = coinIndex.coinValueMinor / 100
 
+  // A coin balance is a prepaid reserve: spending coins releases that reserve, so
+  // coin purchases are affordable whenever the viewer's own balance covers the
+  // coin price, independent of the treasury's direct-pay headroom.
+  const coinBalance = viewer.clientId === null ? null : (await c.wallets.getOrCreate(viewer.clientId)).coinBalance
+
   return {
     signedIn: viewer.accountId !== null,
     products: products.map((product) => {
@@ -63,12 +68,19 @@ export async function readStorefront(c: Container, viewer: Viewer, audience: Aud
         costMinor: product.cost.minor,
         availableUsdtMinor: availableUsdMinor,
       })
-      return presentProduct(product, { basisPoints }, rate, coinIndex.coinValueMinor, {
-        buyable: availability.buyable,
-        fundingGapMinor: availability.fundingGapMinor,
-        unavailableReason:
-          availability.unavailableReason === "inactive" ? null : availability.unavailableReason,
-      })
+      return presentProduct(
+        product,
+        { basisPoints },
+        rate,
+        coinIndex.coinValueMinor,
+        {
+          buyable: availability.buyable,
+          fundingGapMinor: availability.fundingGapMinor,
+          unavailableReason:
+            availability.unavailableReason === "inactive" ? null : availability.unavailableReason,
+        },
+        coinBalance,
+      )
     }),
     rate,
     coinValue,
@@ -94,8 +106,10 @@ export function presentProduct(
   rate: number,
   coinValueMinor: number,
   availability: StorefrontAvailability,
+  coinBalance: number | null = null,
 ): StorefrontProductDto {
   const priced = priceProduct(product.cost, markup, rate, coinValueMinor)
+  const coinsGap = coinBalance === null ? 0 : Math.max(0, priced.coins - coinBalance)
   return {
     id: product.id,
     name: product.name,
@@ -105,6 +119,8 @@ export function presentProduct(
     isDiamond: /^\d+$/.test(product.name),
     directPayAvailable: availability.buyable,
     buyable: availability.buyable,
+    coinsBuyable: coinBalance !== null && coinsGap === 0,
+    coinsGap,
     fundingGapMinor: availability.fundingGapMinor,
     unavailableReason: availability.unavailableReason,
   }

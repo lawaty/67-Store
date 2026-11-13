@@ -14,6 +14,7 @@ import {
   listAchievements,
   listProducts,
   listUsers,
+  presentAdminProduct,
   readAdminStats,
   readDashboard,
   readSettings,
@@ -996,6 +997,14 @@ describe("listProducts", () => {
         unavailableReason: "unknown_balance",
       },
     ])
+  })
+
+  it("treats negative available USDT as zero buyable funds", () => {
+    const p = product({ id: "p1", distributorId: "d1", name: "cheap", cost: money(50, "USD"), game: "mlbb", active: true })
+    const dto = presentAdminProduct(p, -135)
+
+    expect(dto.buyable).toBe(false)
+    expect(dto.unavailableReason).toBe("insufficient_funds")
   })
 })
 

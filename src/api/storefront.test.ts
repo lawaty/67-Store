@@ -63,6 +63,14 @@ function fakeContainer(overrides: FakeContainerOverrides = {}): Container {
       sumCoinsChargedSince: vi.fn(async () => 0),
     },
     activity: { sumQualifiedVolumeSince: vi.fn(async () => 0) },
+    wallets: {
+      getOrCreate: async () => ({ clientId: "c1", coinBalance: 0 }),
+      credit: async () => ({ clientId: "c1", coinBalance: 0 }),
+      debit: async () => true,
+      listEntries: async () => [],
+      findEntryByReference: async () => null,
+      reverseDebit: async () => {},
+    } as never,
     distributor: {
       checkPlayer: async () => ({ valid: true, name: "Player" }),
       placeOrder: async () => ({ distributorOrderId: "d1", status: "PENDING" }),
@@ -262,8 +270,7 @@ describe("readStorefront", () => {
     expect(presentProduct(p, markup(2000), 48.5, 100, { buyable: true, fundingGapMinor: 0, unavailableReason: null }).coins).toBe(2)
   })
 
-  it("marks available-affordable products buyable with no funding gap", async () => {
-    const container = fakeContainer({
+  it("marks available-affordable products buyable with no funding gap", async () => {    const container = fakeContainer({
       treasury: {
         snapshot: async () => ({ usdtMilli: 250000, basisEgpMinor: 0, wacEgpMinor: 0 }),
       } as unknown as Container["treasury"],
@@ -311,6 +318,35 @@ describe("readStorefront", () => {
       ["p1", true, 0, null, true],
       ["p2", false, 5000, "insufficient_funds", false],
     ])
+  })
+
+  it("marks coins buyable from the wallet balance even when direct pay is unfunded", async () => {
+    const container = fakeContainer({
+      treasury: {
+        snapshot: async () => ({ usdtMilli: 0, basisEgpMinor: 0, wacEgpMinor: 0 }),
+      } as unknown as Container["treasury"],
+      wallets: { getOrCreate: async () => ({ clientId: "c1", coinBalance: 20000 }) } as never,
+    })
+
+    const storefront = await readStorefront(container, { accountId: "a1", clientId: "c1" }, "client", now)
+
+    expect(storefront.products[0]).toMatchObject({ buyable: false, coinsBuyable: true, coinsGap: 0 })
+  })
+
+  it("reports the coin shortfall when the wallet does not cover the coin price", async () => {
+    const container = fakeContainer({
+      wallets: { getOrCreate: async () => ({ clientId: "c1", coinBalance: 5000 }) } as never,
+    })
+
+    const storefront = await readStorefront(container, { accountId: "a1", clientId: "c1" }, "client", now)
+
+    expect(storefront.products[0]).toMatchObject({ coinsBuyable: false, coinsGap: 7000 })
+  })
+
+  it("never marks coins buyable for a guest", async () => {
+    const storefront = await readStorefront(fakeContainer(), { accountId: null, clientId: null }, "client", now)
+
+    expect(storefront.products[0]).toMatchObject({ coinsBuyable: false, coinsGap: 0 })
   })
 
   it("marks all products unknown when recorded snapshot fails and does not read live balance", async () => {

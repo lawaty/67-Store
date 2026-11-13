@@ -31,7 +31,7 @@ export function egpPerDiamondMinor(product: StorefrontProductDto): number | null
 export function bestValueDiamond(
   diamonds: readonly StorefrontProductDto[],
 ): StorefrontProductDto | null {
-  const candidates = diamonds.filter((product) => product.buyable)
+  const candidates = diamonds.filter((product) => product.buyable || product.coinsBuyable)
   return candidates.reduce<StorefrontProductDto | null>((current, product) => {
     if (!current) return product
     const next = egpPerDiamondMinor(product)
@@ -40,6 +40,20 @@ export function bestValueDiamond(
     if (previous === null) return product
     return next < previous ? product : current
   }, null)
+}
+
+/**
+ * Availability of a product for a payment method. Direct-pay methods need
+ * treasury headroom; coins need only the viewer's own balance. Guests are
+ * allowed through to the login step rather than being told the product is gone.
+ */
+export function methodAvailable(
+  product: StorefrontProductDto,
+  method: UrlMethod,
+  signedIn: boolean,
+): boolean {
+  if (method === "coins") return !signedIn || product.coinsBuyable
+  return product.buyable
 }
 
 export type ProductPrice = {

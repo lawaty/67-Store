@@ -16,6 +16,7 @@ import { isUrlMethod, methodToForm, slugify, topupPath, type UrlMethod } from "@
 import { getLocale } from "@/i18n/server"
 import { t } from "@/i18n/dictionary"
 import { SubmitButton } from "@/app/submit-button"
+import { methodAvailable } from "../../../catalogue"
 
 export const dynamic = "force-dynamic"
 
@@ -67,12 +68,17 @@ export default async function Page({
   const needsLogin = method === "coins" && !signedIn
   const gatewayDisabled = method === "paymob" ? !paymobEnabled : method === "crypto" ? !cryptoEnabled : !coinsEnabled
   const directPayUnavailable = isDirectPayMethod(method) && product.directPayAvailable === false
-  const productUnavailable = !product.buyable
-  const unavailableText = product.unavailableReason === "insufficient_funds" && product.fundingGapMinor > 0
-    ? t(locale, "topup.fundingGap", { amount: (product.fundingGapMinor / 100).toFixed(2) })
-    : product.unavailableReason === "unknown_balance"
-      ? t(locale, "topup.unavailableUnknown")
-      : null
+  const productUnavailable = !methodAvailable(product, method, signedIn)
+  const unavailableText =
+    method === "coins"
+      ? signedIn && product.coinsGap > 0
+        ? t(locale, "topup.coinsGap", { amount: String(product.coinsGap) })
+        : null
+      : product.unavailableReason === "insufficient_funds" && product.fundingGapMinor > 0
+        ? t(locale, "topup.fundingGap", { amount: (product.fundingGapMinor / 100).toFixed(2) })
+        : product.unavailableReason === "unknown_balance"
+          ? t(locale, "topup.unavailableUnknown")
+          : null
 
   return (
     <main className="page pb-32 lg:pb-24">

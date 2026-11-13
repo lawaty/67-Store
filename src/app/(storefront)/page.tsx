@@ -8,7 +8,7 @@ import { topupPath } from "@/app/urls"
 import { Icon } from "@/app/icons"
 import { getLocale } from "@/i18n/server"
 import { t } from "@/i18n/dictionary"
-import { partitionProducts, priceFor } from "./catalogue"
+import { methodAvailable, partitionProducts, priceFor } from "./catalogue"
 import { ProductMethods, type ProductMethodOption } from "./product-methods"
 import { PageGlow } from "./page-glow"
 import { readPreferredMethod } from "./preferred-method"
@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic"
 
 export default async function Page() {
   const locale = await getLocale()
-  const { products, defaultMethod, gateways } = await (await serverApi()).get<StorefrontDto>("/api/storefront")
+  const { products, defaultMethod, gateways, signedIn } = await (await serverApi()).get<StorefrontDto>("/api/storefront")
   const { diamonds, bundles } = partitionProducts(products)
   const preferred = await readPreferredMethod()
   const method = preferred ?? defaultMethod
@@ -34,7 +34,12 @@ export default async function Page() {
   const selectedMethod = offeredMethodIds.includes(method) ? method : (offeredMethodIds[0] ?? method)
 
   const unavailableReason = (product: (typeof diamonds)[number]) => {
-    if (product.buyable) return undefined
+    if (methodAvailable(product, selectedMethod, signedIn)) return undefined
+    if (selectedMethod === "coins") {
+      return product.coinsGap > 0
+        ? t(locale, "topup.coinsGap", { amount: String(product.coinsGap) })
+        : t(locale, "home.unavailableUnknown")
+    }
     if (product.unavailableReason === "insufficient_funds" && product.fundingGapMinor > 0) {
       return t(locale, "home.fundingGap", { amount: (product.fundingGapMinor / 100).toFixed(2) })
     }
@@ -42,6 +47,7 @@ export default async function Page() {
   }
 
   const diamondOptions: ProductMethodOption[] = diamonds.map((product) => {
+    const available = methodAvailable(product, selectedMethod, signedIn)
     const display = priceFor(product, selectedMethod, currency)
     const priceLabel =
       display.coinAmount !== undefined
@@ -53,9 +59,9 @@ export default async function Page() {
       href: topupPath(product.name, selectedMethod),
       price: display.price,
       coinAmount: display.coinAmount,
-      disabled: !product.buyable,
+      disabled: !available,
       reason: unavailableReason(product),
-      fundingGapMinor: product.buyable ? undefined : product.fundingGapMinor,
+      fundingGapMinor: available || selectedMethod === "coins" ? undefined : product.fundingGapMinor,
     }
   })
 
@@ -105,7 +111,7 @@ export default async function Page() {
                 options={diamondOptions}
                 label={t(locale, "home.selectDiamond")}
                 ctaLabel={t(locale, "home.cta.topup")}
-                defaultId={(diamonds.find((diamond) => diamond.buyable) ?? diamonds[0]).name}
+                defaultId={(diamonds.find((diamond) => methodAvailable(diamond, selectedMethod, signedIn)) ?? diamonds[0]).name}
                 showCtaLabel
               />
             </div>
@@ -126,22 +132,27 @@ export default async function Page() {
         ) : (
           <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {featuredBundles.map((product) => {
+              const available = methodAvailable(product, selectedMethod, signedIn)
               const display = priceFor(product, selectedMethod, currency)
               return (
-              <div key={product.id} className={`card group ${product.buyable ? "card-lift" : "opacity-80"}`}>
+              <div key={product.id} className={`card group ${available ? "card-lift" : "opacity-80"}`}>
                 <div className="card-body">
                   <div className="flex items-start justify-between gap-2">
                     <p className="card-amount card-amount-text">{product.name}</p>
-                    {!product.buyable ? <span className="badge">{t(locale, "home.unavailable")}</span> : null}
+                    {!available ? <span className="badge">{t(locale, "home.unavailable")}</span> : null}
                   </div>
                   <p className="amount mt-2 text-xl font-extrabold transition-colors duration-300 group-hover:text-ember" dir="ltr">
                     {display.coinAmount === undefined ? display.price : <>{display.coinAmount}<Coin size={14} /></>}
                   </p>
-                  {!product.buyable ? (
+                  {!available ? (
                     <p className="mt-2 text-xs font-semibold text-muted">
-                      {product.unavailableReason === "insufficient_funds" && product.fundingGapMinor > 0
-                        ? t(locale, "home.fundingGap", { amount: (product.fundingGapMinor / 100).toFixed(2) })
-                        : t(locale, "home.unavailableUnknown")}
+                      {selectedMethod === "coins"
+                        ? product.coinsGap > 0
+                          ? t(locale, "topup.coinsGap", { amount: String(product.coinsGap) })
+                          : t(locale, "home.unavailableUnknown")
+                        : product.unavailableReason === "insufficient_funds" && product.fundingGapMinor > 0
+                          ? t(locale, "home.fundingGap", { amount: (product.fundingGapMinor / 100).toFixed(2) })
+                          : t(locale, "home.unavailableUnknown")}
                     </p>
                   ) : (
                     <p className="card-desc mt-2 flex items-center gap-1.5">
@@ -151,7 +162,7 @@ export default async function Page() {
                   )}
                 </div>
                 <div className="border-t border-line p-3">
-                  {product.buyable ? (
+                  {available ? (
                     <Link className="btn btn-primary cta-sheen w-full" href={topupPath(product.name, selectedMethod)}>
                       {t(locale, "home.cta.topup")}
                     </Link>

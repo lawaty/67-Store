@@ -108,8 +108,13 @@ export function presentAdminProduct(
   availableUsdtMilliValue: number | null,
 ): AdminProductDto {
   const active = product.active !== false
+  // Negative available value means recorded treasury is below coins reserved; render as zero buyable funds instead of failing the request (shared/usdt.ts guard stays as-is).
   const availableUsdtMinor =
-    availableUsdtMilliValue === null ? null : usdMinorFloorFromUsdtMilli(availableUsdtMilliValue)
+    availableUsdtMilliValue === null
+      ? null
+      : availableUsdtMilliValue <= 0
+        ? 0
+        : usdMinorFloorFromUsdtMilli(availableUsdtMilliValue)
   const availability = productAvailability({
     active,
     costMinor: product.cost.minor,

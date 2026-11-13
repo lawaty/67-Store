@@ -10,7 +10,7 @@ import { topupPath } from "@/app/urls"
 import { getLocale } from "@/i18n/server"
 import { t } from "@/i18n/dictionary"
 import { ProductMethods, type ProductMethodOption } from "../product-methods"
-import { partitionProducts, egpPerDiamondMinor, bestValueDiamond, priceFor } from "../catalogue"
+import { partitionProducts, egpPerDiamondMinor, bestValueDiamond, methodAvailable, priceFor } from "../catalogue"
 import { readPreferredMethod } from "../preferred-method"
 
 export const dynamic = "force-dynamic"
@@ -19,7 +19,7 @@ type Product = StorefrontProductDto
 
 export default async function Page() {
   const locale = await getLocale()
-  const { products, defaultMethod, gateways } = await (await serverApi()).get<StorefrontDto>("/api/storefront")
+  const { products, defaultMethod, gateways, signedIn } = await (await serverApi()).get<StorefrontDto>("/api/storefront")
   const { diamonds, bundles } = partitionProducts(products)
   const preferred = await readPreferredMethod()
   const method = preferred ?? defaultMethod
@@ -40,9 +40,20 @@ export default async function Page() {
     const unitMinor = egpPerDiamondMinor(product)
     const unit = unitMinor !== null ? unitMinor / 100 : null
     const isBest = best?.id === product.id
-    const unavailableText = !product.buyable
+    const directPayAvailable = product.buyable && product.directPayAvailable
+    const coinsAvailable = methodAvailable(product, "coins", signedIn)
+    const anyAvailable =
+      (paymobEnabled && methodAvailable(product, "paymob", signedIn)) ||
+      (coinsEnabled && coinsAvailable) ||
+      (cryptoEnabled && methodAvailable(product, "crypto", signedIn))
+    const unavailableText = !directPayAvailable
       ? product.unavailableReason === "insufficient_funds" && product.fundingGapMinor > 0
         ? t(locale, "home.fundingGap", { amount: (product.fundingGapMinor / 100).toFixed(2) })
+        : t(locale, "home.unavailableUnknown")
+      : undefined
+    const coinsText = !coinsAvailable
+      ? product.coinsGap > 0
+        ? t(locale, "topup.coinsGap", { amount: String(product.coinsGap) })
         : t(locale, "home.unavailableUnknown")
       : undefined
     const egp = priceFor(product, "paymob", currency)
@@ -55,9 +66,9 @@ export default async function Page() {
         label: t(locale, "home.methodInstapay"),
         href: topupPath(product.name, "paymob"),
         price: egp.price,
-        disabled: !product.buyable || !product.directPayAvailable,
+        disabled: !directPayAvailable,
         reason: unavailableText,
-        fundingGapMinor: product.buyable ? undefined : product.fundingGapMinor,
+        fundingGapMinor: directPayAvailable ? undefined : product.fundingGapMinor,
       })
     }
     if (coinsEnabled) {
@@ -67,9 +78,8 @@ export default async function Page() {
         href: topupPath(product.name, "coins"),
         price: coins.price,
         coinAmount: coins.coinAmount,
-        disabled: !product.buyable,
-        reason: unavailableText,
-        fundingGapMinor: product.buyable ? undefined : product.fundingGapMinor,
+        disabled: !coinsAvailable,
+        reason: coinsText,
       })
     }
     if (cryptoEnabled) {
@@ -78,9 +88,9 @@ export default async function Page() {
         label: t(locale, "home.methodCrypto"),
         href: topupPath(product.name, "crypto"),
         price: crypto.price,
-        disabled: !product.buyable || !product.directPayAvailable,
+        disabled: !directPayAvailable,
         reason: unavailableText,
-        fundingGapMinor: product.buyable ? undefined : product.fundingGapMinor,
+        fundingGapMinor: directPayAvailable ? undefined : product.fundingGapMinor,
       })
     }
 
@@ -98,7 +108,7 @@ export default async function Page() {
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
               {isBest ? <span className="badge badge-paid">{t(locale, "home.bestValue")}</span> : null}
-              {!product.buyable ? <span className="badge">{t(locale, "home.unavailable")}</span> : null}
+              {!anyAvailable ? <span className="badge">{t(locale, "home.unavailable")}</span> : null}
             </div>
           </div>
           {unit !== null ? (

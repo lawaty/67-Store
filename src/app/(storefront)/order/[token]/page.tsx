@@ -13,6 +13,7 @@ import { getLocale } from "@/i18n/server"
 import { t } from "@/i18n/dictionary"
 import { displayCurrency } from "@/frontend/format"
 import { CopyLink } from "./copy-link"
+import { LiveStatus } from "./live-status"
 import { resumePayment } from "./actions"
 
 export const dynamic = "force-dynamic"
@@ -58,6 +59,7 @@ export default async function Page({ params, searchParams }: { params: Promise<{
 
   return (
     <main className="page">
+      <LiveStatus token={order.token} status={order.status} />
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <Link className="btn btn-ghost btn-sm" href="/products">
           <span className="rtl:-scale-x-100"><Icon name="chevron-left" size={15} /></span>
