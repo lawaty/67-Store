@@ -35,7 +35,6 @@ export type CheckoutInput = {
 
 export type CheckoutDeps = {
   readonly newId: () => string
-  readonly allowFakeFulfilment: boolean
   readonly now?: () => Date
 }
 
@@ -229,7 +228,11 @@ export async function checkout(
     )
     const paidOrder = Object.freeze({ ...apply(attachPayment(awaiting, "coins:" + awaiting.id), "PAYMENT_CONFIRMED"), coinsCharged: cost, coinsConsumed: cost })
     await c.orders.update(paidOrder)
-    if (deps.allowFakeFulfilment) await c.fulfilOrder(paidOrder)
+    try {
+      await c.fulfilOrder(paidOrder)
+    } catch (error) {
+      console.error("coins fulfilment failed", error)
+    }
 
     return { ok: true, redirectUrl: `/order/${awaiting.token}` }
   }

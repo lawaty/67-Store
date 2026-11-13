@@ -50,7 +50,7 @@ export async function resumeOrderPayment(
   c: Container,
   token: string,
   method: ResumePaymentMethod,
-  deps: { readonly session: RequestSession | null; readonly allowFakeFulfilment: boolean; readonly newId: () => string },
+  deps: { readonly session: RequestSession | null; readonly newId: () => string },
 ): Promise<ResumePaymentResultDto> {
   const order = await c.orders.findByToken(token)
   if (order === null) return { ok: false, error: "not_found" }
@@ -128,7 +128,11 @@ export async function resumeOrderPayment(
     }
 
     await c.orders.update(paidOrder)
-    if (deps.allowFakeFulfilment) await c.fulfilOrder(paidOrder)
+    try {
+      await c.fulfilOrder(paidOrder)
+    } catch (error) {
+      console.error("coins fulfilment failed", error)
+    }
     return { ok: true, redirectUrl: `/order/${order.token}` }
   }
 

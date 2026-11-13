@@ -46,7 +46,7 @@ describe("POST /api/orders/[token]/resume-payment", () => {
       expect.objectContaining({}),
       "t1",
       "egp",
-      expect.objectContaining({ session: null, allowFakeFulfilment: expect.any(Boolean), newId: expect.any(Function) }),
+      expect.objectContaining({ session: null, newId: expect.any(Function) }),
     )
   })
 

@@ -17,7 +17,6 @@ export async function POST(request: Request, context: { params: Promise<{ token:
   const container = getContainer()
   const result = await resumeOrderPayment(container, token, method(body.method), {
     session,
-    allowFakeFulfilment: container.fakeFulfilmentEnabled(),
     newId: randomUUID,
   })
   return json(result)

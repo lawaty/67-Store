@@ -41,7 +41,7 @@ export async function POST(request: Request): Promise<Response> {
       locale: text(body.locale),
       termsAccepted: body.termsAccepted === true,
     },
-    { newId: randomUUID, allowFakeFulfilment: container.fakeFulfilmentEnabled() },
+    { newId: randomUUID },
   )
 
   return json(result)

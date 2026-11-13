@@ -145,12 +145,12 @@ const awaiting = order({
 
 describe("resumeOrderPayment", () => {
   it("unknown token -> not_found", async () => {
-    const res = await resumeOrderPayment(fakeContainer(null), "missing", "egp", { session: null, allowFakeFulfilment: false, newId: () => "id" })
+    const res = await resumeOrderPayment(fakeContainer(null), "missing", "egp", { session: null, newId: () => "id" })
     expect(res).toEqual({ ok: false, error: "not_found" })
   })
 
   it("not awaiting -> not_awaiting", async () => {
-    const res = await resumeOrderPayment(fakeContainer(sample), "t1", "egp", { session: null, allowFakeFulfilment: false, newId: () => "id" })
+    const res = await resumeOrderPayment(fakeContainer(sample), "t1", "egp", { session: null, newId: () => "id" })
     expect(res).toEqual({ ok: false, error: "not_awaiting" })
   })
 
@@ -158,7 +158,7 @@ describe("resumeOrderPayment", () => {
     const startPayment = vi.fn(async (args: any) => ({ payment: null, redirectUrl: "/redir" }))
     const container = fakeContainer(awaiting)
     ;(container as any).startPayment = startPayment
-    const res = await resumeOrderPayment(container, "tok_abc", "egp", { session: null, allowFakeFulfilment: false, newId: () => "id" })
+    const res = await resumeOrderPayment(container, "tok_abc", "egp", { session: null, newId: () => "id" })
     expect(res).toEqual({ ok: true, redirectUrl: "/redir" })
     expect(startPayment).toHaveBeenCalledWith(expect.objectContaining({ provider: "PAYMOB" }))
   })
@@ -168,7 +168,7 @@ describe("resumeOrderPayment", () => {
     const container = fakeContainer(awaiting)
     ;(container as any).paymentProviderAvailable = async () => false
     ;(container as any).startPayment = startPayment
-    const res = await resumeOrderPayment(container, "tok_abc", "egp", { session: null, allowFakeFulfilment: false, newId: () => "id" })
+    const res = await resumeOrderPayment(container, "tok_abc", "egp", { session: null, newId: () => "id" })
     expect(res).toEqual({ ok: false, error: "unavailable" })
     expect(startPayment).not.toHaveBeenCalled()
   })
@@ -178,7 +178,7 @@ describe("resumeOrderPayment", () => {
     const container = fakeContainer(awaiting)
     ;(container as any).payments.findByOrderId = async () => [{ id: "p", orderId: "o1", provider: "PAYMOB", providerReference: "ref_paid", amount: money(1000, "USD"), status: "PAID" }]
     ;(container as any).orders.update = update
-    const res = await resumeOrderPayment(container, "tok_abc", "egp", { session: null, allowFakeFulfilment: false, newId: () => "id" })
+    const res = await resumeOrderPayment(container, "tok_abc", "egp", { session: null, newId: () => "id" })
     expect(res).toEqual({ ok: true, redirectUrl: "/order/tok_abc" })
     expect(update).toHaveBeenCalled()
   })
@@ -198,7 +198,7 @@ describe("resumeOrderPayment", () => {
     ;(container as any).wallets.findEntryByReference = findEntryByReference
     ;(container as any).wallets.debit = debit
     ;(container as any).orders.update = update
-    const res = await resumeOrderPayment(container, "tok_abc", "coins", { session: { accountId: "a1", clientId: "c1" }, allowFakeFulfilment: false, newId: () => "id" })
+    const res = await resumeOrderPayment(container, "tok_abc", "coins", { session: { accountId: "a1", clientId: "c1" }, newId: () => "id" })
     expect(res).toEqual({ ok: true, redirectUrl: "/order/tok_abc" })
     expect(findEntryByReference).toHaveBeenCalledWith("coins:o1")
     expect(debit).not.toHaveBeenCalled()
@@ -213,7 +213,7 @@ describe("resumeOrderPayment", () => {
     const debit = vi.fn(async () => true)
     const container = fakeContainer(awaiting)
     ;(container as any).wallets.debit = debit
-    const res = await resumeOrderPayment(container, "tok_abc", "coins", { session: null, allowFakeFulfilment: false, newId: () => "id" })
+    const res = await resumeOrderPayment(container, "tok_abc", "coins", { session: null, newId: () => "id" })
     expect(res).toEqual({ ok: false, error: "login" })
     expect(debit).not.toHaveBeenCalled()
   })
@@ -222,15 +222,16 @@ describe("resumeOrderPayment", () => {
     const debit = vi.fn(async () => true)
     const container = fakeContainer(awaiting)
     ;(container as any).wallets.debit = debit
-    const res = await resumeOrderPayment(container, "tok_abc", "coins", { session: { accountId: "a2", clientId: "c2" }, allowFakeFulfilment: false, newId: () => "id" })
+    const res = await resumeOrderPayment(container, "tok_abc", "coins", { session: { accountId: "a2", clientId: "c2" }, newId: () => "id" })
     expect(res).toEqual({ ok: false, error: "login" })
     expect(debit).not.toHaveBeenCalled()
   })
 
-  it("coins matching session -> debited, paid payment, updated", async () => {
+  it("coins matching session -> debited, paid payment, updated, fulfil attempted", async () => {
     const debit = vi.fn(async () => true)
     const saveIfAbsent = vi.fn(async () => true)
     const update = vi.fn(async (_order: any) => {})
+    const fulfilOrder = vi.fn(async (value: any) => value)
     const findEntryByReference = vi.fn(async () => ({
       id: "e1",
       amount: -50,
@@ -243,11 +244,13 @@ describe("resumeOrderPayment", () => {
     ;(container as any).wallets.findEntryByReference = findEntryByReference
     ;(container as any).payments.saveIfAbsent = saveIfAbsent
     ;(container as any).orders.update = update
-    const res = await resumeOrderPayment(container, "tok_abc", "coins", { session: { accountId: "a1", clientId: "c1" }, allowFakeFulfilment: false, newId: () => "id" })
+    ;(container as any).fulfilOrder = fulfilOrder
+    const res = await resumeOrderPayment(container, "tok_abc", "coins", { session: { accountId: "a1", clientId: "c1" }, newId: () => "id" })
     expect(res).toEqual({ ok: true, redirectUrl: "/order/tok_abc" })
     expect(debit).toHaveBeenCalledWith("c1", expect.any(Number), "order:o1", "coins:o1")
     expect(saveIfAbsent).toHaveBeenCalledWith(expect.objectContaining({ providerReference: "coins:o1", provider: "COINS" }))
     expect(update).toHaveBeenCalled()
+    expect(fulfilOrder).toHaveBeenCalledWith(expect.objectContaining({ status: "PAID" }))
     const updated = update.mock.calls[0]![0] as any
     expect(updated.coinsCharged).toBe(50)
     expect(updated.coinsConsumed).toBe(50)
@@ -261,7 +264,7 @@ describe("resumeOrderPayment", () => {
     ;(container as any).wallets.debit = debit
     ;(container as any).payments.saveIfAbsent = saveIfAbsent
     ;(container as any).orders.update = update
-    const res = await resumeOrderPayment(container, "tok_abc", "coins", { session: { accountId: "a1", clientId: "c1" }, allowFakeFulfilment: false, newId: () => "id" })
+    const res = await resumeOrderPayment(container, "tok_abc", "coins", { session: { accountId: "a1", clientId: "c1" }, newId: () => "id" })
     expect(res).toEqual({ ok: false, error: "coins" })
     expect(saveIfAbsent).not.toHaveBeenCalled()
     expect(update).not.toHaveBeenCalled()
@@ -277,7 +280,7 @@ describe("resumeOrderPayment", () => {
     ;(container as any).payments.saveIfAbsent = saveIfAbsent
     ;(container as any).wallets.reverseDebit = reverseDebit
     ;(container as any).orders.update = update
-    const res = await resumeOrderPayment(container, "tok_abc", "coins", { session: { accountId: "a1", clientId: "c1" }, allowFakeFulfilment: false, newId: () => "id" })
+    const res = await resumeOrderPayment(container, "tok_abc", "coins", { session: { accountId: "a1", clientId: "c1" }, newId: () => "id" })
     expect(res).toEqual({ ok: false, error: "coins" })
     expect(reverseDebit).toHaveBeenCalledWith("coins:o1")
     expect(update).not.toHaveBeenCalled()
@@ -295,7 +298,7 @@ describe("resumeOrderPayment", () => {
     ;(container as any).orders.update = update
     ;(container as any).orders.findByToken = findByToken
     ;(container as any).fulfilOrder = fulfilOrder
-    const res = await resumeOrderPayment(container, "tok_abc", "coins", { session: { accountId: "a1", clientId: "c1" }, allowFakeFulfilment: false, newId: () => "id" })
+    const res = await resumeOrderPayment(container, "tok_abc", "coins", { session: { accountId: "a1", clientId: "c1" }, newId: () => "id" })
     expect(res).toEqual({ ok: true, redirectUrl: "/order/tok_abc" })
     expect(update).toHaveBeenCalled()
     expect(fulfilOrder).not.toHaveBeenCalled()
@@ -315,7 +318,7 @@ describe("resumeOrderPayment", () => {
       .mockResolvedValueOnce(awaiting)
       .mockResolvedValueOnce(fulfilling)
     ;(container as any).fulfilOrder = fulfilOrder
-    const res = await resumeOrderPayment(container, "tok_abc", "coins", { session: { accountId: "a1", clientId: "c1" }, allowFakeFulfilment: false, newId: () => "id" })
+    const res = await resumeOrderPayment(container, "tok_abc", "coins", { session: { accountId: "a1", clientId: "c1" }, newId: () => "id" })
     expect(res).toEqual({ ok: true, redirectUrl: "/order/tok_abc" })
     expect(update).not.toHaveBeenCalled()
     expect(fulfilOrder).not.toHaveBeenCalled()

@@ -131,7 +131,7 @@ function fakeContainer(overrides: Partial<Container> = {}): Container {
   } as unknown as Container
 }
 
-const deps = { newId: () => "id", allowFakeFulfilment: false, now: () => now }
+const deps = { newId: () => "id", now: () => now }
 const curve = JSON.stringify({ breakpoints: [{ coins: 0, basisPoints: 2000 }, { coins: 10000, basisPoints: 1000 }] })
 
 describe("checkout", () => {
@@ -232,7 +232,7 @@ describe("checkout", () => {
     )
   })
 
-  it("pays with coins, records the payment and fulfils when allowed", async () => {
+  it("pays with coins, records the payment and fulfils without any fake-fulfilment flag", async () => {
     const update = vi.fn(async () => {})
     const save = vi.fn(async () => {})
     const fulfil = vi.fn(async (value: Order) => value)
@@ -269,7 +269,7 @@ describe("checkout", () => {
       container,
       member,
       { ...input, method: "coins" },
-      { newId: () => "id", allowFakeFulfilment: true },
+      { newId: () => "id" },
     )
 
     expect(result).toEqual({ ok: true, redirectUrl: "/order/t1" })
@@ -324,12 +324,62 @@ describe("checkout", () => {
       container,
       member,
       { ...input, method: "coins" },
-      { newId: () => "id", allowFakeFulfilment: true },
+      { newId: () => "id" },
     )
 
     expect(result).toEqual({ ok: true, redirectUrl: "/order/t1" })
     expect(debit).toHaveBeenCalledWith("c1", 12000, "order:o1")
     expect(update).toHaveBeenCalledWith(expect.objectContaining({ status: "PAID", coinsCharged: 12000, coinsConsumed: 12000 }))
+  })
+
+  it("returns ok when coin fulfilment fails after payment writes", async () => {
+    const update = vi.fn(async () => {})
+    const save = vi.fn(async () => {})
+    const debit = vi.fn(async () => true)
+    const fulfil = vi.fn(async () => {
+      throw new Error("boom")
+    })
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {})
+
+    const container = fakeContainer({
+      orders: {
+        update,
+        save: async () => {},
+        findById: async () => created,
+        findByToken: async () => created,
+        listRecent: async () => [],
+        listByClient: async () => [],
+        countByClient: async () => 0,
+        findByDistributorOrderId: async () => null,
+        listByStatus: async () => [],
+        search: async () => ({ rows: [], total: 0 }),
+        sumCoinsChargedSince: async () => 0,
+        summarizeByClient: async () => ({ totalOrders: 0, totalPaidCoins: 0, monthlyPaidCoins: 0 }), listFailedUnrefundedCoinOrders: async () => [],
+      },
+      wallets: {
+        debit,
+        credit: async () => ({ clientId: "c1", coinBalance: 0 }),
+        getOrCreate: async () => ({ clientId: "c1", coinBalance: 0 }),
+        listEntries: async () => [],
+        findEntryByReference: async () => null,
+        reverseDebit: async () => {},
+      },
+      payments: { save, saveIfAbsent: async () => true, findByProviderReference: async () => null, findByOrderId: async () => [], markStatus: async () => {} },
+      fulfilOrder: fulfil as never,
+    })
+
+    const result = await checkout(container, member, { ...input, method: "coins" }, { newId: () => "id" })
+
+    expect(result).toEqual({ ok: true, redirectUrl: "/order/t1" })
+    expect(debit).toHaveBeenCalledWith("c1", 12000, "order:o1")
+    expect(save).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: "COINS", status: "PAID", providerReference: "coins:o1" }),
+    )
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({ status: "PAID", coinsCharged: 12000, coinsConsumed: 12000 }))
+    expect(fulfil).toHaveBeenCalledWith(expect.objectContaining({ status: "PAID" }))
+    expect(consoleError).toHaveBeenCalledWith("coins fulfilment failed", expect.any(Error))
+
+    consoleError.mockRestore()
   })
 
   it("starts an PAYMOB payment for the egp method", async () => {
@@ -748,7 +798,7 @@ describe("checkout", () => {
       fulfilOrder: fulfil,
     })
 
-    const result = await checkout(container, member, { ...input, method: "coins" }, { newId: () => "id", allowFakeFulfilment: true, now: () => now })
+    const result = await checkout(container, member, { ...input, method: "coins" }, { newId: () => "id", now: () => now })
     expect(result).toEqual({ ok: true, redirectUrl: "/order/t1" })
     expect(debit).toHaveBeenCalled()
   })
