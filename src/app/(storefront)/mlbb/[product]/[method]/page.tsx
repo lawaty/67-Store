@@ -107,7 +107,7 @@ export default async function Page({
 
           {gatewayDisabled ? (
             <div className="mt-6 rounded-2xl border border-line bg-surface p-6 shadow-e1">
-              <p className="notice">{t(locale, "topup.errorUnavailable")}</p>
+              <p className="notice">{t(locale, "topup.errorMethodDisabled")}</p>
             </div>
           ) : productUnavailable ? (
             <div className="mt-6 rounded-2xl border border-line bg-surface p-6 shadow-e1">
